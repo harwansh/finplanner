@@ -4,7 +4,7 @@ applications:
       - pattern: '**/*'
         headers:
           - key: Strict-Transport-Security
-            value: max-age=31536000; includeSubDomains
+            value: max-age=31536000; includeSubDomains; preload
           - key: X-Content-Type-Options
             value: nosniff
           - key: X-Frame-Options
@@ -12,6 +12,14 @@ applications:
           - key: Referrer-Policy
             value: strict-origin-when-cross-origin
           - key: Permissions-Policy
-            value: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+            value: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+          - key: Cross-Origin-Opener-Policy
+            value: same-origin
+          - key: Cross-Origin-Resource-Policy
+            value: same-origin
+          - key: Origin-Agent-Cluster
+            value: ?1
+          - key: X-Permitted-Cross-Domain-Policies
+            value: none
           - key: Content-Security-Policy
-            value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.lambda-url.us-east-1.on.aws https://*.amazonaws.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+            value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.lambda-url.us-east-1.on.aws https://*.amazonaws.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"

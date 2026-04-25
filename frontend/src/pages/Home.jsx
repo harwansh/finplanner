@@ -316,6 +316,17 @@ export default function Home() {
     setResult(null)
     try {
       const cleaned = cleanProfile(data)
+      const payloadShapeError = hasInvalidPayloadShape(cleaned)
+      if (payloadShapeError) {
+        setErr(payloadShapeError)
+        setBusy(false)
+        return
+      }
+      if (hasSensitiveData(cleaned)) {
+        setErr('Do not enter PAN, Aadhaar, bank account, OTP, password, UPI or other sensitive identifiers.')
+        setBusy(false)
+        return
+      }
       const r = await analyze(cleaned)
       setResult(r)
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
@@ -338,7 +349,7 @@ export default function Home() {
 
       <ComplianceBanner />
 
-      <form onSubmit={submit}>
+      <form onSubmit={submit} autoComplete="off">
         <div className="tabs-card">
           <div className="tabs">
             {tabs.map(([key, label], index) => (
@@ -1110,6 +1121,41 @@ const Field = ({ label, children, required = false, hint }) => (
     {hint && <small>{hint}</small>}
   </label>
 )
+
+
+function hasSensitiveData(value, path = 'root') {
+  const sensitiveKey = /(aadhaar|aadhar|pan|otp|password|passcode|secret|token|bank.?account|account.?number|ifsc|upi|vpa)/i
+  const panPattern = /\b[A-Z]{5}[0-9]{4}[A-Z]\b/i
+  const aadhaarPattern = /\b[2-9][0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b/
+  const otpPattern = /\b(?:otp|one time password)[^\d]{0,20}\d{4,8}\b/i
+
+  if (value == null) return false
+
+  if (Array.isArray(value)) {
+    return value.some((item, index) => hasSensitiveData(item, `${path}[${index}]`))
+  }
+
+  if (typeof value === 'object') {
+    return Object.entries(value).some(([key, child]) => {
+      if (sensitiveKey.test(key) && child !== '' && child != null) return true
+      return hasSensitiveData(child, `${path}.${key}`)
+    })
+  }
+
+  if (typeof value === 'string') {
+    return panPattern.test(value) || aadhaarPattern.test(value) || otpPattern.test(value)
+  }
+
+  return false
+}
+
+function hasInvalidPayloadShape(profile) {
+  if ((profile?.goals || []).length > 50) return 'Maximum 50 goals allowed.'
+  if ((profile?.investments || []).length > 100) return 'Maximum 100 investment rows allowed.'
+  if ((profile?.basics?.kids || []).length > 10) return 'Maximum 10 child rows allowed.'
+  return ''
+}
+
 
 function validateTab(tab, profile) {
   switch (tab) {

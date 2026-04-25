@@ -3,6 +3,7 @@
 import copy
 import json
 import os
+import re
 from datetime import datetime
 
 import boto3
@@ -17,6 +18,204 @@ CORS_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",
 }
+
+
+# ===== SmartFinly security guardrails =====
+MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", "65536"))
+MAX_STRING_LENGTH = int(os.environ.get("MAX_STRING_LENGTH", "2000"))
+MAX_GOALS = int(os.environ.get("MAX_GOALS", "50"))
+MAX_INVESTMENTS = int(os.environ.get("MAX_INVESTMENTS", "100"))
+MAX_KIDS = int(os.environ.get("MAX_KIDS", "10"))
+MAX_ABS_NUMBER = float(os.environ.get("MAX_ABS_NUMBER", "1000000000000"))
+APP_OWNS_CORS = os.environ.get("APP_OWNS_CORS", "false").lower() == "true"
+ALLOWED_ORIGINS = {
+    origin.strip()
+    for origin in os.environ.get(
+        "ALLOWED_ORIGINS",
+        "https://www.smartfinly.com,https://smartfinly.com,http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+}
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Cache-Control": "no-store",
+    "Pragma": "no-cache",
+    "X-Robots-Tag": "noindex, nofollow",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+}
+
+SENSITIVE_KEY_RE = re.compile(
+    r"(aadhaar|aadhar|pan|otp|password|passcode|secret|token|bank.?account|account.?number|ifsc|upi|vpa)",
+    re.IGNORECASE,
+)
+PAN_RE = re.compile(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b")
+AADHAAR_RE = re.compile(r"\b[2-9][0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b")
+OTP_RE = re.compile(r"\b(?:otp|one time password)[^\d]{0,20}\d{4,8}\b", re.IGNORECASE)
+
+
+class SecurityValidationError(Exception):
+    pass
+
+
+def _security_json_response(status, message):
+    return {
+        "statusCode": status,
+        "headers": _with_security_headers({"Content-Type": "application/json"}),
+        "body": json.dumps({"error": message}, ensure_ascii=False),
+    }
+
+
+def _with_security_headers(headers=None, origin=None):
+    merged = {}
+    merged.update(headers or {})
+    merged.update(SECURITY_HEADERS)
+
+    # Important: default false to avoid duplicate CORS headers when Lambda Function URL
+    # or CloudFront already owns CORS.
+    if APP_OWNS_CORS and origin in ALLOWED_ORIGINS:
+        merged["Access-Control-Allow-Origin"] = origin
+        merged["Access-Control-Allow-Methods"] = "POST,OPTIONS"
+        merged["Access-Control-Allow-Headers"] = "Content-Type"
+        merged["Vary"] = "Origin"
+
+    return merged
+
+
+def _body_from_event(event):
+    raw = event.get("body") if isinstance(event, dict) else None
+    if raw is None:
+        return ""
+
+    if event.get("isBase64Encoded"):
+        import base64
+        raw_bytes = base64.b64decode(raw)
+        if len(raw_bytes) > MAX_BODY_BYTES:
+            raise SecurityValidationError("Request body is too large.")
+        return raw_bytes.decode("utf-8")
+
+    if len(str(raw).encode("utf-8")) > MAX_BODY_BYTES:
+        raise SecurityValidationError("Request body is too large.")
+    return raw
+
+
+def _parse_json_body_for_security(event):
+    raw = _body_from_event(event)
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        raise SecurityValidationError("Invalid JSON request body.")
+    if not isinstance(parsed, dict):
+        raise SecurityValidationError("Request body must be a JSON object.")
+    return parsed
+
+
+def _reject_sensitive_or_invalid(value, path="root"):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            key_text = str(key)
+            child_path = f"{path}.{key_text}"
+            if SENSITIVE_KEY_RE.search(key_text) and child not in ("", None, [], {}):
+                raise SecurityValidationError(
+                    "Do not enter PAN, Aadhaar, bank account, OTP, password, token, UPI or other sensitive identifiers."
+                )
+            _reject_sensitive_or_invalid(child, child_path)
+        return
+
+    if isinstance(value, list):
+        if path.endswith(".goals") and len(value) > MAX_GOALS:
+            raise SecurityValidationError(f"Too many goals. Maximum allowed is {MAX_GOALS}.")
+        if path.endswith(".investments") and len(value) > MAX_INVESTMENTS:
+            raise SecurityValidationError(f"Too many investment rows. Maximum allowed is {MAX_INVESTMENTS}.")
+        if path.endswith(".kids") and len(value) > MAX_KIDS:
+            raise SecurityValidationError(f"Too many children rows. Maximum allowed is {MAX_KIDS}.")
+        for idx, child in enumerate(value):
+            _reject_sensitive_or_invalid(child, f"{path}[{idx}]")
+        return
+
+    if isinstance(value, str):
+        if len(value) > MAX_STRING_LENGTH:
+            raise SecurityValidationError("One or more text fields are too long.")
+        if PAN_RE.search(value.upper()) or AADHAAR_RE.search(value) or OTP_RE.search(value):
+            raise SecurityValidationError(
+                "Do not enter PAN, Aadhaar, OTP, bank or other sensitive identifiers."
+            )
+        return
+
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if value < 0:
+            raise SecurityValidationError("Negative numbers are not allowed in planner inputs.")
+        if abs(value) > MAX_ABS_NUMBER:
+            raise SecurityValidationError("One or more numeric values are unrealistically large.")
+        return
+
+
+def _security_preflight(event):
+    if not isinstance(event, dict):
+        return
+
+    method = (
+        event.get("requestContext", {}).get("http", {}).get("method")
+        or event.get("httpMethod")
+        or ""
+    ).upper()
+
+    if method == "OPTIONS":
+        raise SecurityValidationError("__OPTIONS__")
+
+    payload = _parse_json_body_for_security(event)
+    _reject_sensitive_or_invalid(payload)
+
+
+def _security_wrap_response(response, event=None):
+    if not isinstance(response, dict):
+        return response
+    headers = response.get("headers") or {}
+    origin = None
+    if isinstance(event, dict):
+        event_headers = event.get("headers") or {}
+        origin = event_headers.get("origin") or event_headers.get("Origin")
+
+    response = dict(response)
+    response["headers"] = _with_security_headers(headers, origin=origin)
+
+    # Ensure JSON is not cached and avoid leaking Python NaN/Infinity.
+    body = response.get("body")
+    if isinstance(body, (dict, list)):
+        response["body"] = json.dumps(body, ensure_ascii=False, allow_nan=False)
+
+    return response
+
+
+def _security_guarded_lambda(core_handler):
+    def wrapper(event, context):
+        origin = None
+        if isinstance(event, dict):
+            event_headers = event.get("headers") or {}
+            origin = event_headers.get("origin") or event_headers.get("Origin")
+        try:
+            _security_preflight(event)
+            response = core_handler(event, context)
+            return _security_wrap_response(response, event)
+        except SecurityValidationError as exc:
+            if str(exc) == "__OPTIONS__":
+                return {
+                    "statusCode": 204,
+                    "headers": _with_security_headers({"Content-Type": "application/json"}, origin=origin),
+                    "body": "",
+                }
+            return _security_json_response(400, str(exc))
+        except Exception as exc:
+            print("Unhandled SmartFinly API error:", exc.__class__.__name__)
+            return _security_json_response(500, "Internal error. Please try again later.")
+    return wrapper
+# ===== End SmartFinly security guardrails =====
+
 
 ASSUMPTIONS = {
     "generalInflation": 0.06,
@@ -1573,3 +1772,5 @@ def handler(event, context):
     except Exception:
         ai_notes = None
     return respond(200, {"summary": summary, "plan": plan, "report": build_report(profile, summary, plan, ai_notes)})
+
+lambda_handler = _security_guarded_lambda(_smartfinly_core_lambda_handler)
