@@ -265,6 +265,7 @@ def validate_profile(profile):
     return errors
 
 
+
 def compute_tax(profile):
     income = profile.get("income", {}) or {}
     salary = profile.get("salary", {}) or {}
@@ -318,10 +319,7 @@ def compute_tax(profile):
     hra = _num(tax.get("hraExemption")) or auto_hra_exemption
     professional_tax = _num(tax.get("professionalTax")) + salary_professional_tax
 
-    deduction_80c = min(
-        150000,
-        _num(tax.get("deduction80C")) + employee_epf,
-    )
+    deduction_80c = min(150000, _num(tax.get("deduction80C")) + employee_epf)
     deduction_80ccd_1b = min(50000, _num(tax.get("nps80CCD1B")))
     deduction_80d = _num(tax.get("health80D"))
     deduction_80g = _num(tax.get("donation80G"))
@@ -335,45 +333,51 @@ def compute_tax(profile):
     employer_nps_new = min(employer_nps, basic_annual * 0.14) if basic_annual > 0 else employer_nps
 
     old_deductions = (
-        standard_old
-        + hra
-        + lta
-        + professional_tax
-        + deduction_80c
-        + deduction_80ccd_1b
-        + employer_nps_old
-        + deduction_80d
-        + deduction_80g
-        + deduction_80e
-        + deduction_80tta_ttb
-        + deduction_80eea
-        + section_24b
+        standard_old + hra + lta + professional_tax + deduction_80c
+        + deduction_80ccd_1b + employer_nps_old + deduction_80d + deduction_80g
+        + deduction_80e + deduction_80tta_ttb + deduction_80eea + section_24b
     )
-
     new_deductions = standard_new + employer_nps_new
 
     old_taxable = max(0, gross_income - old_deductions)
     new_taxable = max(0, gross_income - new_deductions)
 
-    old_tax = slab_tax_old(old_taxable)
-    new_tax = slab_tax_new_2025(new_taxable)
+    old_slabs = [(250000, 0), (500000, 0.05), (1000000, 0.20), (10**18, 0.30)]
+    new_slabs = [(400000, 0), (800000, 0.05), (1200000, 0.10), (1600000, 0.15), (2000000, 0.20), (2400000, 0.25), (10**18, 0.30)]
 
-    if old_taxable <= 500000:
-        old_tax = 0
-    if new_taxable <= 1200000:
-        new_tax = 0
+    old_breakdown, old_tax_before_rebate = slab_breakdown(old_taxable, old_slabs)
+    new_breakdown, new_tax_before_rebate = slab_breakdown(new_taxable, new_slabs)
 
-    old_tax_with_cess = old_tax * 1.04
-    new_tax_with_cess = new_tax * 1.04
+    old_rebate = old_tax_before_rebate if old_taxable <= 500000 else 0
+    new_rebate = new_tax_before_rebate if new_taxable <= 1200000 else 0
+
+    old_tax_after_rebate = max(0, old_tax_before_rebate - old_rebate)
+    new_tax_after_rebate = max(0, new_tax_before_rebate - new_rebate)
+
+    old_cess = old_tax_after_rebate * 0.04
+    new_cess = new_tax_after_rebate * 0.04
+
+    old_tax_with_cess = old_tax_after_rebate + old_cess
+    new_tax_with_cess = new_tax_after_rebate + new_cess
 
     preferred = "Old" if old_tax_with_cess < new_tax_with_cess else "New"
+
     return {
+        "fyLabel": "FY 2026-27",
         "grossIncome": _money(gross_income),
         "salaryComponentsTotal": _money(salary_components_total),
         "oldDeductions": _money(old_deductions),
         "newDeductions": _money(new_deductions),
         "oldTaxable": _money(old_taxable),
         "newTaxable": _money(new_taxable),
+        "oldSlabBreakdown": old_breakdown,
+        "newSlabBreakdown": new_breakdown,
+        "oldTaxBeforeRebate": _money(old_tax_before_rebate),
+        "newTaxBeforeRebate": _money(new_tax_before_rebate),
+        "oldRebate": _money(old_rebate),
+        "newRebate": _money(new_rebate),
+        "oldCess": _money(old_cess),
+        "newCess": _money(new_cess),
         "oldTax": _money(old_tax_with_cess),
         "newTax": _money(new_tax_with_cess),
         "preferredRegime": preferred,
@@ -397,6 +401,30 @@ def compute_tax(profile):
             "section24B": _money(section_24b),
         },
     }
+
+
+def slab_breakdown(taxable, slabs):
+    taxable = _num(taxable)
+    rows = []
+    prev = 0
+    total = 0
+    for limit, rate in slabs:
+        if taxable <= prev:
+            break
+        amount = max(0, min(taxable, limit) - prev)
+        tax = amount * rate
+        label_to = "Above" if limit >= 10**17 else _fmt_money(limit)
+        label = f"{_fmt_money(prev)} to {label_to}"
+        rows.append({
+            "range": label,
+            "ratePct": round(rate * 100, 2),
+            "taxableAmount": _money(amount),
+            "tax": _money(tax),
+        })
+        total += tax
+        prev = limit
+    return rows, _money(total)
+
 
 def slab_tax_old(taxable):
     taxable = _num(taxable)
@@ -738,7 +766,7 @@ def build_report(profile, summary, plan, ai_notes=None):
         f"- Existing health cover: {_fmt_money(ins['existingHealthCover'])}",
         f"- Health cover gap: {_fmt_money(ins['healthCoverGap'])}",
         "",
-        "### 5. Tax Snapshot FY 2025-26",
+        "### 5. Tax Snapshot FY 2026-27",
         "",
         f"- Gross annual income considered: {_fmt_money(tax['grossIncome'])}",
         f"- Salary components total: {_fmt_money(tax.get('salaryComponentsTotal'))}",
@@ -749,6 +777,20 @@ def build_report(profile, summary, plan, ai_notes=None):
         f"- Old regime tax estimate: {_fmt_money(tax['oldTax'])}",
         f"- New regime tax estimate: {_fmt_money(tax['newTax'])}",
         f"- Suggested regime: {tax['preferredRegime']}",
+        "",
+        "#### Old regime slab-wise tax",
+        "| Slab | Rate | Taxable amount | Tax |",
+        "|---|---:|---:|---:|",
+        *[f"| {row['range']} | {row['ratePct']}% | {_fmt_money(row['taxableAmount'])} | {_fmt_money(row['tax'])} |" for row in tax.get("oldSlabBreakdown", [])],
+        f"- Old regime rebate: {_fmt_money(tax.get('oldRebate'))}",
+        f"- Old regime cess: {_fmt_money(tax.get('oldCess'))}",
+        "",
+        "#### New regime slab-wise tax",
+        "| Slab | Rate | Taxable amount | Tax |",
+        "|---|---:|---:|---:|",
+        *[f"| {row['range']} | {row['ratePct']}% | {_fmt_money(row['taxableAmount'])} | {_fmt_money(row['tax'])} |" for row in tax.get("newSlabBreakdown", [])],
+        f"- New regime rebate: {_fmt_money(tax.get('newRebate'))}",
+        f"- New regime cess: {_fmt_money(tax.get('newCess'))}",
         "",
         "### 6. Investment Mapping",
         "",

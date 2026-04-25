@@ -540,9 +540,10 @@ export default function Home() {
 }
 
 function Results({ result, inputData, cashflowPreview, taxPreview, insurancePreview, displayGoals }) {
-  const { summary, report, error } = result || {}
+  const { summary, plan, report, error } = result || {}
   const tax = summary?.tax || taxPreview
   const insurance = summary?.insurance || insurancePreview
+  const outputGoals = buildOutputGoalsFromPlan(plan?.goals, displayGoals)
 
   const monthlyIncome = summary?.monthlyIncome ?? cashflowPreview.monthlyIncome
   const monthlyExpenses = summary?.monthlyExpenses ?? cashflowPreview.monthlyExpenses
@@ -596,10 +597,12 @@ function Results({ result, inputData, cashflowPreview, taxPreview, insurancePrev
           <MetricRow label="Old regime tax" current={tax?.oldTax} max={Math.max(tax?.oldTax || 0, tax?.newTax || 0, 1)} />
           <MetricRow label="New regime tax" current={tax?.newTax} max={Math.max(tax?.oldTax || 0, tax?.newTax || 0, 1)} accent />
           <div className="chart-note">
-            Preferred regime: <strong>{tax?.preferredRegime || '—'}</strong> ·
+            Preferred regime: <strong>{tax?.preferredRegime || '-'}</strong> ·
             Taxable income old {fmtMoney(tax?.oldTaxable)} ·
             Taxable income new {fmtMoney(tax?.newTaxable)}
           </div>
+          <TaxSlabTable title="Old regime slab-wise tax" rows={tax?.oldSlabBreakdown} rebate={tax?.oldRebate} cess={tax?.oldCess} />
+          <TaxSlabTable title="New regime slab-wise tax" rows={tax?.newSlabBreakdown} rebate={tax?.newRebate} cess={tax?.newCess} />
         </ChartCard>
 
         <ChartCard title="Insurance calculation" subtitle="Current cover vs estimated requirement">
@@ -624,8 +627,8 @@ function Results({ result, inputData, cashflowPreview, taxPreview, insurancePrev
               <span>Today need</span>
               <span>Future need</span>
             </div>
-            {displayGoals.length === 0 && <div className="goal-empty muted">No custom or auto goals yet.</div>}
-            {displayGoals.map(goal => (
+            {outputGoals.length === 0 && <div className="goal-empty muted">No goals returned yet.</div>}
+            {outputGoals.map(goal => (
               <div key={goal.id} className="goal-summary-row">
                 <span>{goal.name}{goal.auto && <em className="goal-auto-tag">auto</em>}</span>
                 <span>{goal.years}</span>
@@ -691,6 +694,59 @@ function ChartCard({ title, subtitle, children }) {
       {children}
     </div>
   )
+}
+
+
+function TaxSlabTable({ title, rows = [], rebate = 0, cess = 0 }) {
+  if (!rows || rows.length === 0) return null
+  return (
+    <div className="slab-table-wrap">
+      <div className="slab-title">{title}</div>
+      <div className="slab-table">
+        <div className="slab-row slab-head">
+          <span>Slab</span>
+          <span>Rate</span>
+          <span>Amount</span>
+          <span>Tax</span>
+        </div>
+        {rows.map((row, index) => (
+          <div className="slab-row" key={`${title}-${index}`}>
+            <span>{row.range}</span>
+            <span>{row.ratePct}%</span>
+            <span>{fmtMoney(row.taxableAmount)}</span>
+            <span>{fmtMoney(row.tax)}</span>
+          </div>
+        ))}
+        <div className="slab-row slab-foot">
+          <span>Rebate</span><span>-</span><span>-</span><span>-{fmtMoney(rebate)}</span>
+        </div>
+        <div className="slab-row slab-foot">
+          <span>Cess</span><span>4%</span><span>-</span><span>{fmtMoney(cess)}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function buildOutputGoalsFromPlan(planGoals, fallbackGoals) {
+  const source = Array.isArray(planGoals) && planGoals.length ? planGoals : fallbackGoals
+  return (source || []).map((goal, index) => {
+    const todayNeed = toNumber(goal.presentCost ?? goal.todayNeed)
+    const futureNeed = toNumber(goal.futureCost ?? goal.futureNeed)
+    return {
+      id: goal.name || `goal-${index}`,
+      name: goal.name || `Goal ${index + 1}`,
+      years: goal.years ?? extractYears(goal.timeline),
+      todayNeed,
+      futureNeed,
+      auto: Boolean(goal.auto) || goal.type === 'Auto-added' || /education|marriage/i.test(goal.name || ''),
+    }
+  })
+}
+
+function extractYears(timeline) {
+  const match = String(timeline || '').match(/(\d+)/)
+  return match ? Number(match[1]) : '-'
 }
 
 function Kpi({ label, value, big }) {
@@ -1167,8 +1223,14 @@ function computeTaxPreview(profile) {
   const oldTaxable = Math.max(0, grossIncome - oldDeductions)
   const newTaxable = Math.max(0, grossIncome - newDeductions)
 
-  let oldTax = slabTaxOld(oldTaxable)
-  let newTax = slabTaxNewFY2627(newTaxable)
+  const oldRows = slabRows(oldTaxable, [[250000, 0], [500000, 0.05], [1000000, 0.20], [Infinity, 0.30]])
+  const newRows = slabRows(newTaxable, [[400000, 0], [800000, 0.05], [1200000, 0.10], [1600000, 0.15], [2000000, 0.20], [2400000, 0.25], [Infinity, 0.30]])
+  const oldBeforeRebate = oldRows.reduce((sum, row) => sum + row.tax, 0)
+  const newBeforeRebate = newRows.reduce((sum, row) => sum + row.tax, 0)
+  const oldRebate = oldTaxable <= 500000 ? oldBeforeRebate : 0
+  const newRebate = newTaxable <= 1200000 ? newBeforeRebate : 0
+  let oldTax = Math.max(0, oldBeforeRebate - oldRebate)
+  let newTax = Math.max(0, newBeforeRebate - newRebate)
 
   if (oldTaxable <= 500000) oldTax = 0
   if (newTaxable <= 1200000) newTax = 0
@@ -1186,9 +1248,33 @@ function computeTaxPreview(profile) {
     newTaxable,
     oldTax,
     newTax,
+    oldSlabBreakdown: oldRows,
+    newSlabBreakdown: newRows,
+    oldRebate,
+    newRebate,
+    oldCess: oldTax * 0.04 / 1.04,
+    newCess: newTax * 0.04 / 1.04,
     preferredRegime: oldTax < newTax ? 'Old' : 'New',
     savingsVsOther: Math.abs(oldTax - newTax),
   }
+}
+
+
+function slabRows(taxable, slabs) {
+  const rows = []
+  let previous = 0
+  for (const [limit, rate] of slabs) {
+    if (taxable <= previous) break
+    const taxableAmount = Math.max(0, Math.min(taxable, limit) - previous)
+    rows.push({
+      range: `${fmtMoney(previous)} to ${limit === Infinity ? 'Above' : fmtMoney(limit)}`,
+      ratePct: rate * 100,
+      taxableAmount,
+      tax: taxableAmount * rate,
+    })
+    previous = limit
+  }
+  return rows
 }
 
 function slabTaxOld(taxable) {
