@@ -60,16 +60,86 @@ class UserInputError(Exception):
     pass
 
 
+
 def _num(value, default=0.0):
+    """Parse all frontend numeric formats safely.
+
+    Handles:
+    - numbers
+    - "1,00,000"
+    - "₹1,00,000"
+    - "10%"
+    - " 80,000 "
+    - "(1,00,000)" as negative, though validation may reject negatives later
+    """
     if value is None or value == "":
         return default
+
+    if isinstance(value, bool):
+        return default
+
+    if isinstance(value, (int, float)):
+        try:
+            if math.isnan(value) or math.isinf(value):
+                return default
+        except TypeError:
+            pass
+        return float(value)
+
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return default
+
+        negative = False
+        if text.startswith("(") and text.endswith(")"):
+            negative = True
+            text = text[1:-1].strip()
+
+        text = (
+            text.replace("₹", "")
+            .replace("Rs.", "")
+            .replace("Rs", "")
+            .replace("INR", "")
+            .replace(",", "")
+            .replace("%", "")
+            .replace("\u00a0", "")
+            .strip()
+        )
+
+        # Keep only a normal numeric representation.
+        cleaned = []
+        dot_seen = False
+        sign_seen = False
+        for char in text:
+            if char.isdigit():
+                cleaned.append(char)
+            elif char == "." and not dot_seen:
+                cleaned.append(char)
+                dot_seen = True
+            elif char in "+-" and not sign_seen and not cleaned:
+                cleaned.append(char)
+                sign_seen = True
+
+        text = "".join(cleaned)
+        if text in {"", "+", "-", "."}:
+            return default
+
+        try:
+            number = float(text)
+            if math.isnan(number) or math.isinf(number):
+                return default
+            return -number if negative else number
+        except (TypeError, ValueError):
+            return default
+
     try:
-        n = float(value)
+        number = float(value)
+        if math.isnan(number) or math.isinf(number):
+            return default
+        return number
     except (TypeError, ValueError):
         return default
-    if math.isnan(n) or math.isinf(n):
-        return default
-    return n
 
 
 def _int(value):
