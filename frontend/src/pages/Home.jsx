@@ -175,7 +175,7 @@ export default function Home() {
     <>
       <div className="card">
         <h2>FinOS Planner</h2>
-        <p className="muted">A CFP-style financial operating system for cash-flow, tax, insurance, investments, goals and retirement.</p>
+        <p className="muted">A CFP-style financial operating system for cash-flow, liabilities, insurance, investments, goals, tax and retirement.</p>
       </div>
 
       <form onSubmit={submit}>
@@ -289,20 +289,14 @@ export default function Home() {
           </Row>
           <CashflowPreview preview={preview} />
         </Section>
-
-        <Section title="3. Assets, liabilities and emergency">
-          <div className="section-note">Current value in ₹. Optional fields can stay blank.</div>
+        <Section title="3. Liabilities and emergency">
+          <div className="section-note">
+            Add only your emergency fund and debts here. Put all investment/current corpus values in “Existing investments and SIPs” to avoid duplicate counting.
+          </div>
           <Row>
-            {Object.keys(empty.assets).map(k => (
-              <Field key={k} label={assetLabels[k] || prettify(k)}>
-                <MoneyInput value={data.assets[k]} onChange={v=>set('assets',k,v)} />
-              </Field>
-            ))}
-            <Field label="Emergency fund" required>
+            <Field label="Emergency fund" required hint="Liquid amount kept for emergencies">
               <MoneyInput value={data.emergencyFund} onChange={v=>setTop('emergencyFund',v)} required />
             </Field>
-          </Row>
-          <Row>
             {Object.keys(empty.liabilities).map(k => (
               <Field key={k} label={liabilityLabels[k] || prettify(k)}>
                 <MoneyInput value={data.liabilities[k]} onChange={v=>set('liabilities',k,v)} />
@@ -327,7 +321,7 @@ export default function Home() {
         </Section>
 
         <Section title="5. Existing investments and SIPs">
-          <div className="section-note">Add all existing SIPs, EPF, NPS, PPF, smallcase, MF categories, FD/RD, gold and others. Return % is auto-filled by category but editable.</div>
+          <div className="section-note">This is the single source for investment/current corpus values: EPF, PPF, NPS, mutual funds, smallcase, stocks, FD/RD, gold, real estate and SIPs. Return % is auto-filled by category but editable.</div>
           <InvestmentEditor investments={data.investments} onChange={v=>setTop('investments', v)} />
         </Section>
 

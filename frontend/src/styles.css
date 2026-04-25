@@ -119,3 +119,177 @@ button.link, .link { background: none; color: #2563eb; padding: 0;
   .kpi.big { grid-column: span 1; }
   .row { grid-template-columns: 1fr; }
 }
+
+
+/* FinOS colorful redesign */
+:root {
+  --finos-blue: #2563eb;
+  --finos-purple: #7c3aed;
+  --finos-pink: #db2777;
+  --finos-green: #059669;
+  --finos-orange: #ea580c;
+  --finos-ink: #111827;
+  --finos-muted: #6b7280;
+  --finos-line: rgba(148, 163, 184, 0.28);
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 34rem),
+    radial-gradient(circle at top right, rgba(219, 39, 119, 0.13), transparent 30rem),
+    linear-gradient(135deg, #f8fbff 0%, #f5f3ff 45%, #fff7ed 100%);
+  color: var(--finos-ink);
+}
+
+header {
+  background: linear-gradient(90deg, #111827, #312e81 45%, #7c2d12);
+  color: white;
+  border: 0;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+header .brand {
+  color: white;
+  letter-spacing: -0.02em;
+}
+
+header .muted {
+  color: rgba(255,255,255,0.76);
+}
+
+.card {
+  border: 1px solid rgba(255,255,255,0.78);
+  background: rgba(255,255,255,0.86);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 20px 55px rgba(30, 41, 59, 0.10);
+}
+
+.card:first-of-type {
+  background:
+    linear-gradient(135deg, rgba(37,99,235,0.95), rgba(124,58,237,0.92) 52%, rgba(219,39,119,0.86)),
+    radial-gradient(circle at 85% 10%, rgba(255,255,255,0.36), transparent 15rem);
+  color: white;
+  border: 0;
+}
+
+.card:first-of-type .muted {
+  color: rgba(255,255,255,0.82);
+}
+
+.card:first-of-type h2 {
+  font-size: clamp(28px, 5vw, 46px);
+  letter-spacing: -0.04em;
+  margin-bottom: 8px;
+}
+
+.card.section {
+  position: relative;
+  overflow: hidden;
+}
+
+.card.section::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--finos-blue), var(--finos-purple), var(--finos-pink));
+}
+
+.card.section h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin-left: -2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(37,99,235,0.12), rgba(124,58,237,0.10));
+  color: #1e3a8a;
+}
+
+.section-note {
+  background: linear-gradient(90deg, rgba(37,99,235,0.08), rgba(16,185,129,0.08));
+  border: 1px solid rgba(37,99,235,0.14);
+  color: #334155;
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+
+input, select, textarea {
+  border-color: rgba(148, 163, 184, 0.55);
+  background: rgba(255,255,255,0.92);
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--finos-purple);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.13);
+}
+
+button.primary, .primary {
+  background: linear-gradient(135deg, var(--finos-blue), var(--finos-purple), var(--finos-pink));
+  box-shadow: 0 12px 28px rgba(124, 58, 237, 0.26);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+button.primary:hover, .primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 35px rgba(124, 58, 237, 0.32);
+}
+
+.kpi {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.96), rgba(248,250,252,0.86)),
+    radial-gradient(circle at top right, rgba(37,99,235,0.12), transparent 9rem);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.kpi:nth-child(3n+1) {
+  background: linear-gradient(135deg, rgba(239,246,255,0.98), rgba(255,255,255,0.92));
+}
+
+.kpi:nth-child(3n+2) {
+  background: linear-gradient(135deg, rgba(240,253,244,0.98), rgba(255,255,255,0.92));
+}
+
+.kpi:nth-child(3n+3) {
+  background: linear-gradient(135deg, rgba(253,242,248,0.98), rgba(255,255,255,0.92));
+}
+
+.kpi.big {
+  background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+  color: white;
+}
+
+.kpi.big .kpi-label,
+.kpi.big .kpi-value {
+  color: white;
+}
+
+.cashflow-preview {
+  border: 0;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35), 0 12px 26px rgba(15,23,42,0.08);
+}
+
+.cashflow-preview.success {
+  background: linear-gradient(135deg, #ecfdf5, #dbeafe);
+}
+
+.cashflow-preview.danger {
+  background: linear-gradient(135deg, #fff1f2, #ffedd5);
+}
+
+.kids {
+  background: linear-gradient(135deg, rgba(248,250,252,0.9), rgba(239,246,255,0.75));
+  border: 1px solid var(--finos-line);
+}
+
+.markdown h2, .markdown h3 {
+  color: #312e81;
+}
+
+.markdown table th {
+  background: linear-gradient(90deg, #eff6ff, #f5f3ff);
+}
+
+.markdown table tr:nth-child(even) {
+  background: rgba(248,250,252,0.72);
+}

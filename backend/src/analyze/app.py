@@ -352,7 +352,7 @@ def compute_summary(profile):
     existing_monthly_investments = sum(_num(i.get("monthlyAmount")) for i in investments)
     remaining_surplus = max(0, monthly_surplus - existing_monthly_investments)
 
-    total_assets = sum(_num(v) for v in assets.values()) + sum(_num(i.get("currentValue")) for i in investments)
+    total_assets = sum(_num(v) for v in assets.values()) + sum(_num(i.get("currentValue")) for i in investments) + _num(profile.get("emergencyFund"))
     total_liabilities = sum(_num(v) for v in liabilities.values())
     emergency_have = _num(profile.get("emergencyFund")) or _num(assets.get("bankSavings"))
     emergency_months = emergency_have / monthly_expenses if monthly_expenses > 0 else 0
