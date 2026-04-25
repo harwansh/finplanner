@@ -1,7 +1,10 @@
+
 import { useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { analyze } from '../api/client'
+
+const FY_LABEL = 'FY 2026-27'
 
 const empty = {
   basics: {
@@ -33,20 +36,24 @@ const empty = {
   expenses: { fixed: '', variable: '', annual: '' },
   monthlyEmi: '',
   emergencyFund: '',
-  assets: {
-    bankSavings: '', fixedDeposits: '', mutualFunds: '', stocks: '',
-    epfCorpus: '', ppfCorpus: '', npsCorpus: '', gold: '', realEstate: '', otherAssets: ''
-  },
   liabilities: {
     homeLoan: '', personalLoan: '', educationLoan: '',
     creditCard: '', vehicleLoan: '', otherDebt: ''
   },
   insurance: { life: '', health: '', criticalIllness: '' },
   tax: {
-    deduction80C: '', nps80CCD1B: '', health80D: '', homeLoanInterest24B: '',
-    homeLoan80EEA: '', educationLoan80E: '', donation80G: '',
-    interest80TTA_TTB: '', hraExemption: '', ltaExemption: '',
-    professionalTax: '', otherAnnualIncome: ''
+    deduction80C: '',
+    nps80CCD1B: '',
+    health80D: '',
+    homeLoanInterest24B: '',
+    homeLoan80EEA: '',
+    educationLoan80E: '',
+    donation80G: '',
+    interest80TTA_TTB: '',
+    hraExemption: '',
+    ltaExemption: '',
+    professionalTax: '',
+    otherAnnualIncome: ''
   },
   investments: [],
   goals: [],
@@ -138,6 +145,7 @@ const goalCategories = [
   ['retirement', 'Retirement'],
   ['education', 'Education'],
   ['childEducation', 'Child education'],
+  ['marriage', 'Marriage'],
   ['home', 'Home'],
   ['medical', 'Medical'],
   ['travel', 'Travel'],
@@ -145,9 +153,6 @@ const goalCategories = [
   ['wealth', 'Wealth creation'],
   ['other', 'Other'],
 ]
-
-const categoryReturnMap = Object.fromEntries(investmentCategories.map(([key,, ret]) => [key, ret]))
-const goalInflationMap = { retirement: 6, education: 10, childEducation: 10, home: 6, medical: 10, travel: 6, vehicle: 6, wealth: 6, other: 6 }
 
 const tabs = [
   ['profile', 'Profile'],
@@ -159,6 +164,20 @@ const tabs = [
   ['tax', 'Tax'],
   ['review', 'Review'],
 ]
+
+const categoryReturnMap = Object.fromEntries(investmentCategories.map(([key, , ret]) => [key, ret]))
+const goalInflationMap = {
+  retirement: 6,
+  education: 10,
+  childEducation: 10,
+  marriage: 7,
+  home: 6,
+  medical: 10,
+  travel: 6,
+  vehicle: 6,
+  wealth: 6,
+  other: 6,
+}
 
 export default function Home() {
   const [data, setData] = useState(empty)
@@ -172,8 +191,15 @@ export default function Home() {
     setData(d => ({ ...d, [section]: { ...d[section], [field]: val } }))
   const setTop = (field, val) => setData(d => ({ ...d, [field]: val }))
   const num = v => v === '' || v == null ? '' : Number(v)
+
   const preview = useMemo(() => getCashflowPreview(data), [data])
   const salaryPreview = useMemo(() => getSalaryPreview(data), [data])
+  const displayGoals = useMemo(() => getDisplayGoals(data), [data])
+  const taxPreview = useMemo(() => computeTaxPreview(data), [data])
+  const insurancePreview = useMemo(
+    () => computeInsurancePreview(data, preview.monthlyExpenses, displayGoals),
+    [data, preview.monthlyExpenses, displayGoals]
+  )
   const currentIndex = tabs.findIndex(([key]) => key === activeTab)
 
   const goNext = () => setActiveTab(tabs[Math.min(currentIndex + 1, tabs.length - 1)][0])
@@ -188,9 +214,12 @@ export default function Home() {
       return
     }
 
-    setBusy(true); setErr(''); setResult(null)
+    setBusy(true)
+    setErr('')
+    setResult(null)
     try {
-      const r = await analyze(cleanProfile(data))
+      const cleaned = cleanProfile(data)
+      const r = await analyze(cleaned)
       setResult(r)
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
     } catch (e) {
@@ -203,8 +232,11 @@ export default function Home() {
   return (
     <>
       <div className="card hero-card">
-        <h2>FinOS Planner</h2>
-        <p className="muted">A CFP-style financial operating system for salary, tax, cash-flow, liabilities, insurance, investments, goals and retirement.</p>
+        <h2>SmartFinly Planner</h2>
+        <p className="muted">
+          A CFP-style financial operating system for salary, tax, cash-flow, liabilities,
+          insurance, investments, goals and retirement.
+        </p>
       </div>
 
       <form onSubmit={submit}>
@@ -280,7 +312,14 @@ export default function Home() {
                 <select value={data.basics.parentsDependent ? 'yes' : 'no'}
                   onChange={e=>{
                     const parentsDependent = e.target.value === 'yes'
-                    setData(d => ({ ...d, basics: { ...d.basics, parentsDependent, dependentParentsCount: parentsDependent ? Math.max(1, Number(d.basics.dependentParentsCount) || 1) : 0 }}))
+                    setData(d => ({
+                      ...d,
+                      basics: {
+                        ...d.basics,
+                        parentsDependent,
+                        dependentParentsCount: parentsDependent ? Math.max(1, Number(d.basics.dependentParentsCount) || 1) : 0
+                      }
+                    }))
                   }} required>
                   <option value="no">No</option>
                   <option value="yes">Yes</option>
@@ -307,7 +346,8 @@ export default function Home() {
           <>
             <Section title="2. Salary structure">
               <div className="section-note">
-                Based on your tax workbook: Basic, HRA, LTA, employer NPS, employee EPF, professional tax and rent help calculate old vs new regime more accurately. Employee EPF is auto-added to 80C and retirement investments. Employer NPS is auto-added to tax deductions and retirement investments. Use annual gross override only if your payslip gives one final annual number.
+                Salary inputs are used for tax comparison for {FY_LABEL}. Employee EPF is auto-added to 80C
+                and retirement investments. Employer NPS is auto-added to tax and retirement planning.
               </div>
               <Row>
                 {Object.keys(data.salary).map(k => (
@@ -317,24 +357,24 @@ export default function Home() {
                 ))}
               </Row>
               <div className="cashflow-preview success">
-                <div className="cashflow-title">Salary tax preview</div>
+                <div className="cashflow-title">Salary and tax base preview</div>
                 <div className="cashflow-grid">
-                  <span>Annual salary components: <strong>{fmt(salaryPreview.annualComponents)}</strong></span>
-                  <span>Annual gross used: <strong>{fmt(salaryPreview.annualGrossUsed)}</strong></span>
-                  <span>Annual HRA received: <strong>{fmt(salaryPreview.hraAnnual)}</strong></span>
-                  <span>Annual rent paid: <strong>{fmt(salaryPreview.rentAnnual)}</strong></span>
-                  <span>Employee EPF auto 80C: <strong>{fmt(salaryPreview.employeeEpfAnnual)}</strong></span>
-                  <span>Employer NPS auto retirement: <strong>{fmt(salaryPreview.employerNpsAnnual)}</strong></span>
+                  <span>Annual salary components: <strong>{fmtMoney(salaryPreview.annualComponents)}</strong></span>
+                  <span>Annual gross used: <strong>{fmtMoney(salaryPreview.annualGrossUsed)}</strong></span>
+                  <span>Annual HRA received: <strong>{fmtMoney(salaryPreview.hraAnnual)}</strong></span>
+                  <span>Annual rent paid: <strong>{fmtMoney(salaryPreview.rentAnnual)}</strong></span>
+                  <span>Employee EPF auto 80C: <strong>{fmtMoney(salaryPreview.employeeEpfAnnual)}</strong></span>
+                  <span>Employer NPS auto retirement: <strong>{fmtMoney(salaryPreview.employerNpsAnnual)}</strong></span>
                 </div>
               </div>
             </Section>
 
             <Section title="3. Cash-flow">
               <Row>
-                <Field label="Monthly income after tax" required hint="Used for cash-flow/surplus. Example: 2,00,000">
+                <Field label="Monthly income after tax" required hint="Example: 2,00,000">
                   <MoneyInput value={data.income.monthlyAfterTax} onChange={v=>set('income','monthlyAfterTax',v)} required />
                 </Field>
-                <Field label="Annual bonus / variable" hint="Cash-flow bonus if not already in monthly net income">
+                <Field label="Annual bonus / variable">
                   <MoneyInput value={data.income.bonusAnnual} onChange={v=>set('income','bonusAnnual',v)} />
                 </Field>
                 <Field label="Other monthly income">
@@ -352,7 +392,7 @@ export default function Home() {
                 <Field label="Variable monthly expenses" required>
                   <MoneyInput value={data.expenses.variable} onChange={v=>set('expenses','variable',v)} required />
                 </Field>
-                <Field label="Annual lump sums" required hint="Insurance, vacations, fees / year">
+                <Field label="Annual lump sums" required hint="Insurance, vacations, school fees / year">
                   <MoneyInput value={data.expenses.annual} onChange={v=>set('expenses','annual',v)} required />
                 </Field>
                 <Field label="Total monthly EMIs" required>
@@ -367,7 +407,8 @@ export default function Home() {
         {activeTab === 'debt' && (
           <Section title="4. Liabilities and emergency">
             <div className="section-note">
-              Add only your emergency fund and debts here. Put all investment/current corpus values in “Existing investments and SIPs” to avoid duplicate counting.
+              Add only your emergency fund and debts here. Put all investment/current corpus values in
+              “Existing investments and SIPs” to avoid duplicate counting.
             </div>
             <Row>
               <Field label="Emergency fund" required hint="Liquid amount kept for emergencies">
@@ -384,7 +425,9 @@ export default function Home() {
 
         {activeTab === 'insurance' && (
           <Section title="5. Insurance">
-            <div className="section-note">Enter current cover. FinOS calculates required life and health cover from dependents, liabilities, expenses and goals.</div>
+            <div className="section-note">
+              Enter your current covers. SmartFinly will show the estimated required life cover and health cover.
+            </div>
             <Row>
               <Field label="Life cover">
                 <MoneyInput value={data.insurance.life} onChange={v=>set('insurance','life',v)} />
@@ -401,22 +444,39 @@ export default function Home() {
 
         {activeTab === 'investments' && (
           <Section title="6. Existing investments and SIPs">
-            <div className="section-note">This is the single source for investment/current corpus values: EPF, PPF, NPS, mutual funds, smallcase, stocks, FD/RD, gold, real estate and SIPs. Return % is auto-filled by category but editable.</div>
+            <div className="section-note">
+              This is the single source for investment/current corpus values: EPF, PPF, NPS, mutual funds,
+              smallcase, stocks, FD/RD, gold, real estate and SIPs. Return % is auto-filled by category but editable.
+            </div>
             <InvestmentEditor investments={data.investments} onChange={v=>setTop('investments', v)} />
           </Section>
         )}
 
         {activeTab === 'goals' && (
           <Section title="7. Goals">
-            <div className="section-note">Structured goals replace free-text future plans. Add only goals you actually want.</div>
+            <div className="section-note">
+              Add custom goals here. Child higher education at age 17 and child marriage at age 22 are auto-created
+              in planning if kids are added in the profile section.
+            </div>
             <GoalEditor goals={data.goals} onChange={v=>setTop('goals', v)} />
+            {displayGoals.filter(g => g.auto).length > 0 && (
+              <div className="auto-goal-box">
+                <div className="goal-box-title">Auto-added child goals</div>
+                <ul className="auto-goal-list">
+                  {displayGoals.filter(g => g.auto).map(goal => (
+                    <li key={goal.id}>{goal.name} · {goal.years} years · Today need {fmtMoney(goal.todayNeed)} · Future need {fmtMoney(goal.futureNeed)}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Section>
         )}
 
         {activeTab === 'tax' && (
-          <Section title="8. Tax inputs FY 2026-27">
+          <Section title={`8. Tax inputs ${FY_LABEL}`}>
             <div className="section-note">
-              Optional deductions/exemptions for old vs new regime. Salary details from the Salary tab are used automatically for HRA, employer NPS, EPF and professional tax where possible.
+              Old vs new regime is calculated for {FY_LABEL}. Salary details from the Salary tab are used automatically
+              for HRA, employer NPS, EPF and professional tax where possible.
             </div>
             <Row>
               {Object.keys(empty.tax).map(k => (
@@ -431,13 +491,14 @@ export default function Home() {
         {activeTab === 'review' && (
           <Section title="9. Review and generate">
             <div className="review-grid">
-              <Kpi label="Annual gross salary used" value={fmt(salaryPreview.annualGrossUsed)} />
-              <Kpi label="Monthly cash-flow surplus" value={fmt(preview.monthlySurplus)} />
-              <Kpi label="Existing SIPs added" value={data.investments.length} />
-              <Kpi label="Custom goals added" value={data.goals.length} />
+              <Kpi label="FY" value={FY_LABEL} />
+              <Kpi label="Annual gross salary used" value={fmtMoney(taxPreview.grossIncome)} />
+              <Kpi label="Monthly cash-flow surplus" value={fmtMoney(preview.monthlySurplus)} />
+              <Kpi label="Goals included" value={fmtCount(displayGoals.length)} />
             </div>
             <div className="section-note">
-              Generate the plan after all tabs are complete. Recommendations remain capped to available surplus after existing SIPs.
+              Generate the plan after all tabs are complete. Output will show tax calculation, insurance calculation,
+              auto-added child goals, today need vs future need, and graphical summaries.
             </div>
           </Section>
         )}
@@ -449,7 +510,7 @@ export default function Home() {
           {currentIndex < tabs.length - 1 && <button type="button" className="primary" onClick={goNext}>Next →</button>}
           {currentIndex === tabs.length - 1 && (
             <button type="submit" disabled={busy} className="primary">
-              {busy ? 'Calculating…' : 'Generate FinOS plan'}
+              {busy ? 'Calculating…' : 'Generate SmartFinly plan'}
             </button>
           )}
           <span className="muted small">Nothing is saved. Refresh to start over.</span>
@@ -463,55 +524,171 @@ export default function Home() {
             <p>Crunching CFP-style numbers…</p>
           </div>
         )}
-        {result && <Results result={result} />}
+        {result && (
+          <Results
+            result={result}
+            inputData={data}
+            cashflowPreview={preview}
+            taxPreview={taxPreview}
+            insurancePreview={insurancePreview}
+            displayGoals={displayGoals}
+          />
+        )}
       </div>
     </>
   )
 }
 
-function Results({ result }) {
-  const { summary, report, error } = result
+function Results({ result, inputData, cashflowPreview, taxPreview, insurancePreview, displayGoals }) {
+  const { summary, report, error } = result || {}
+  const tax = summary?.tax || taxPreview
+  const insurance = summary?.insurance || insurancePreview
+
+  const monthlyIncome = summary?.monthlyIncome ?? cashflowPreview.monthlyIncome
+  const monthlyExpenses = summary?.monthlyExpenses ?? cashflowPreview.monthlyExpenses
+  const currentMonthlyInvestments = summary?.currentMonthlyInvestments ?? getCurrentMonthlyInvestments(inputData)
+  const remainingSurplus = summary?.remainingSurplusAfterExistingInvestments ?? (cashflowPreview.monthlySurplus - currentMonthlyInvestments)
+
   return (
     <div className="results">
-      {summary && (
-        <div className="card">
-          <h2>FinOS Dashboard</h2>
-          {summary.monthlySurplus <= 0 && (
-            <div className="err" style={{marginBottom: 12}}>
-              Not feasible yet. Expenses consume or exceed income. Fix cash flow before starting new SIPs.
-            </div>
-          )}
-          {summary.warnings?.length > 0 && (
-            <ul className="muted small">
-              {summary.warnings.map((warning, i) => <li key={i}>{warning}</li>)}
-            </ul>
-          )}
-          <div className="kpi-grid">
-            <Kpi label="Net worth" value={fmt(summary.netWorth)} big />
-            <Kpi label="Monthly income" value={fmt(summary.monthlyIncome)} />
-            <Kpi label="Monthly expenses" value={fmt(summary.monthlyExpenses)} />
-            <Kpi label="Monthly surplus" value={fmt(summary.monthlySurplus)} />
-            <Kpi label="Existing SIPs" value={fmt(summary.currentMonthlyInvestments)} />
-            <Kpi label="Remaining surplus" value={fmt(summary.remainingSurplusAfterExistingInvestments)} />
-            <Kpi label="Auto risk" value={summary.riskProfile?.label || '—'} />
-            <Kpi label="Tax regime" value={summary.tax?.preferredRegime || '—'} />
+      <div className="card">
+        <div className="result-header">
+          <div>
+            <div className="result-eyebrow">Planner dashboard</div>
+            <h2>SmartFinly Output</h2>
+            <div className="muted">{FY_LABEL} aligned calculations with tax, insurance, goals and monthly planning</div>
           </div>
-          {summary.riskProfile && (
-            <div className="cashflow-preview success" style={{marginTop: 14}}>
-              <div className="cashflow-title">Auto-calculated risk profile</div>
-              {summary.riskProfile.label}: {summary.riskProfile.equity}% equity / {summary.riskProfile.debt}% debt / {summary.riskProfile.gold}% gold. {summary.riskProfile.reason}
-            </div>
-          )}
         </div>
-      )}
+
+        {summary?.warnings?.length > 0 && (
+          <ul className="muted small" style={{marginTop: 10}}>
+            {summary.warnings.map((warning, i) => <li key={i}>{warning}</li>)}
+          </ul>
+        )}
+
+        <div className="kpi-grid">
+          <Kpi label="Net worth" value={fmtMoney(summary?.netWorth)} big />
+          <Kpi label="Monthly income" value={fmtMoney(monthlyIncome)} />
+          <Kpi label="Monthly expenses" value={fmtMoney(monthlyExpenses)} />
+          <Kpi label="Monthly surplus" value={fmtMoney(summary?.monthlySurplus ?? cashflowPreview.monthlySurplus)} />
+          <Kpi label="Existing SIPs" value={fmtMoney(currentMonthlyInvestments)} />
+          <Kpi label="Free surplus" value={fmtMoney(remainingSurplus)} />
+          <Kpi label="Preferred regime" value={tax?.preferredRegime || '—'} />
+          <Kpi label="Auto risk" value={summary?.riskProfile?.label || '—'} />
+        </div>
+      </div>
+
+      <div className="visual-grid">
+        <ChartCard title="Cash-flow picture" subtitle="Graphical view of money in and money out">
+          <MetricRow label="Income" current={monthlyIncome} max={Math.max(monthlyIncome, monthlyExpenses, currentMonthlyInvestments, remainingSurplus, 1)} />
+          <MetricRow label="Expenses" current={monthlyExpenses} max={Math.max(monthlyIncome, monthlyExpenses, currentMonthlyInvestments, remainingSurplus, 1)} danger />
+          <MetricRow label="Existing SIPs" current={currentMonthlyInvestments} max={Math.max(monthlyIncome, monthlyExpenses, currentMonthlyInvestments, remainingSurplus, 1)} />
+          <MetricRow label="Free surplus" current={Math.max(remainingSurplus, 0)} max={Math.max(monthlyIncome, monthlyExpenses, currentMonthlyInvestments, remainingSurplus, 1)} accent />
+        </ChartCard>
+
+        <ChartCard title={`Tax calculation • ${FY_LABEL}`} subtitle="Old vs new regime comparison">
+          <div className="mini-kpi-grid">
+            <MiniKpi label="Gross income" value={fmtMoney(tax?.grossIncome)} />
+            <MiniKpi label="Old tax" value={fmtMoney(tax?.oldTax)} />
+            <MiniKpi label="New tax" value={fmtMoney(tax?.newTax)} />
+            <MiniKpi label="Savings" value={fmtMoney(tax?.savingsVsOther)} />
+          </div>
+          <MetricRow label="Old regime tax" current={tax?.oldTax} max={Math.max(tax?.oldTax || 0, tax?.newTax || 0, 1)} />
+          <MetricRow label="New regime tax" current={tax?.newTax} max={Math.max(tax?.oldTax || 0, tax?.newTax || 0, 1)} accent />
+          <div className="chart-note">
+            Preferred regime: <strong>{tax?.preferredRegime || '—'}</strong> ·
+            Taxable income old {fmtMoney(tax?.oldTaxable)} ·
+            Taxable income new {fmtMoney(tax?.newTaxable)}
+          </div>
+        </ChartCard>
+
+        <ChartCard title="Insurance calculation" subtitle="Current cover vs estimated requirement">
+          <div className="mini-kpi-grid">
+            <MiniKpi label="Current life cover" value={fmtMoney(insurance?.currentLifeCover)} />
+            <MiniKpi label="Required life cover" value={fmtMoney(insurance?.recommendedLifeCover)} />
+            <MiniKpi label="Current health cover" value={fmtMoney(insurance?.currentHealthCover)} />
+            <MiniKpi label="Required health cover" value={fmtMoney(insurance?.recommendedHealthCover)} />
+          </div>
+          <MetricRow label="Life cover" current={insurance?.currentLifeCover} max={Math.max(insurance?.recommendedLifeCover || 0, insurance?.currentLifeCover || 0, 1)} />
+          <MetricRow label="Required life" current={insurance?.recommendedLifeCover} max={Math.max(insurance?.recommendedLifeCover || 0, insurance?.currentLifeCover || 0, 1)} accent />
+          <MetricRow label="Health cover" current={insurance?.currentHealthCover} max={Math.max(insurance?.recommendedHealthCover || 0, insurance?.currentHealthCover || 0, 1)} />
+          <MetricRow label="Required health" current={insurance?.recommendedHealthCover} max={Math.max(insurance?.recommendedHealthCover || 0, insurance?.currentHealthCover || 0, 1)} accent />
+          <div className="chart-note">{insurance?.note}</div>
+        </ChartCard>
+
+        <ChartCard title="Goal summary" subtitle="Today need vs future need">
+          <div className="goal-summary-table">
+            <div className="goal-summary-head">
+              <span>Goal</span>
+              <span>Years</span>
+              <span>Today need</span>
+              <span>Future need</span>
+            </div>
+            {displayGoals.length === 0 && <div className="goal-empty muted">No custom or auto goals yet.</div>}
+            {displayGoals.map(goal => (
+              <div key={goal.id} className="goal-summary-row">
+                <span>{goal.name}{goal.auto && <em className="goal-auto-tag">auto</em>}</span>
+                <span>{goal.years}</span>
+                <span>{fmtMoney(goal.todayNeed)}</span>
+                <span>{fmtMoney(goal.futureNeed)}</span>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
+      </div>
 
       {error && <div className="card err">{error}</div>}
 
       {report && (
         <div className="card markdown">
+          <div className="report-header-line">
+            <strong>Detailed report</strong>
+            <span className="muted">{FY_LABEL}</span>
+          </div>
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{report}</ReactMarkdown>
         </div>
       )}
+    </div>
+  )
+}
+
+function MetricRow({ label, current, max, danger = false, accent = false }) {
+  const safeCurrent = Number(current) || 0
+  const safeMax = Math.max(Number(max) || 1, 1)
+  const pct = Math.max(0, Math.min(100, (safeCurrent / safeMax) * 100))
+  return (
+    <div className="metric-row">
+      <div className="metric-top">
+        <span>{label}</span>
+        <strong>{fmtMoney(safeCurrent)}</strong>
+      </div>
+      <div className="metric-track">
+        <div
+          className={`metric-fill ${danger ? 'danger' : accent ? 'accent' : ''}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function MiniKpi({ label, value }) {
+  return (
+    <div className="mini-kpi">
+      <div className="mini-kpi-label">{label}</div>
+      <div className="mini-kpi-value">{value}</div>
+    </div>
+  )
+}
+
+function ChartCard({ title, subtitle, children }) {
+  return (
+    <div className="card chart-card">
+      <div className="chart-card-head">
+        <div className="chart-title">{title}</div>
+        <div className="chart-subtitle">{subtitle}</div>
+      </div>
+      {children}
     </div>
   )
 }
@@ -528,7 +705,9 @@ function Kpi({ label, value, big }) {
 function KidsEditor({ kids, onChange }) {
   const add = () => onChange([...kids, { name: '', age: '' }])
   const update = (i, k, v) => {
-    const copy = kids.slice(); copy[i] = { ...copy[i], [k]: v }; onChange(copy)
+    const copy = kids.slice()
+    copy[i] = { ...copy[i], [k]: v }
+    onChange(copy)
   }
   const remove = (i) => onChange(kids.filter((_,j)=>j!==i))
   return (
@@ -582,7 +761,7 @@ function InvestmentEditor({ investments, onChange }) {
     <div className="kids">
       {investments.length === 0 && <div className="muted small" style={{marginBottom: 12}}>No SIPs added yet.</div>}
       {investments.map((inv, i) => (
-        <div key={i} className="card" style={{padding: 14, marginBottom: 12}}>
+        <div key={i} className="card compact-card">
           <Row>
             <Field label="Investment name">
               <input value={inv.name} placeholder="Axis small cap SIP, EPF, NPS..."
@@ -636,9 +815,9 @@ function GoalEditor({ goals, onChange }) {
 
   return (
     <div className="kids">
-      {goals.length === 0 && <div className="muted small" style={{marginBottom: 12}}>No custom goals added. Required retirement, emergency and insurance goals are generated automatically.</div>}
+      {goals.length === 0 && <div className="muted small" style={{marginBottom: 12}}>No custom goals added yet.</div>}
       {goals.map((goal, i) => (
-        <div key={i} className="card" style={{padding: 14, marginBottom: 12}}>
+        <div key={i} className="card compact-card">
           <Row>
             <Field label="Goal name">
               <input value={goal.name} placeholder="Home down payment, MBA, car..."
@@ -705,13 +884,13 @@ function CashflowPreview({ preview }) {
     <div className={`cashflow-preview ${isNegative ? 'danger' : 'success'}`}>
       <div className="cashflow-title">Monthly cash-flow preview</div>
       <div className="cashflow-grid">
-        <span>Fixed: <strong>{fmt(preview.fixed)}</strong></span>
-        <span>Variable: <strong>{fmt(preview.variable)}</strong></span>
-        <span>Annual / month: <strong>{fmt(preview.annualProrated)}</strong></span>
-        <span>EMI: <strong>{fmt(preview.emi)}</strong></span>
+        <span>Fixed: <strong>{fmtMoney(preview.fixed)}</strong></span>
+        <span>Variable: <strong>{fmtMoney(preview.variable)}</strong></span>
+        <span>Annual / month: <strong>{fmtMoney(preview.annualProrated)}</strong></span>
+        <span>EMI: <strong>{fmtMoney(preview.emi)}</strong></span>
       </div>
       <div className="cashflow-total">
-        Expenses: <strong>{fmt(preview.monthlyExpenses)}</strong> · Surplus: <strong>{fmt(preview.monthlySurplus)}</strong>
+        Expenses: <strong>{fmtMoney(preview.monthlyExpenses)}</strong> · Surplus: <strong>{fmtMoney(preview.monthlySurplus)}</strong>
       </div>
     </div>
   )
@@ -723,7 +902,9 @@ const Section = ({ title, children }) => (
     {children}
   </section>
 )
+
 const Row = ({ children }) => <div className="row">{children}</div>
+
 const Field = ({ label, children, required = false, hint }) => (
   <label className="field">
     <span>{label}{required && <em className="required">*</em>}</span>
@@ -732,8 +913,23 @@ const Field = ({ label, children, required = false, hint }) => (
   </label>
 )
 
+function validate(profile) {
+  if (Number(profile.basics.desiredRetirementAge) <= Number(profile.basics.age)) {
+    return 'Desired retirement age must be greater than current age.'
+  }
+  if (profile.basics.parentsDependent && Number(profile.basics.dependentParentsCount) < 1) {
+    return 'Please enter at least 1 dependent parent, or select "No" for parent dependency.'
+  }
+  const partialKid = profile.basics.kids.find(kid => Boolean(kid.name?.trim()) !== (kid.age !== ''))
+  if (profile.basics.maritalStatus === 'married' && partialKid) {
+    return 'Please enter both name and age for each child, or remove the incomplete child row.'
+  }
+  return ''
+}
+
 function cleanProfile(profile) {
   const cleaned = structuredClone(profile)
+
   cleaned.basics.kids = cleaned.basics.maritalStatus === 'married'
     ? cleaned.basics.kids
         .filter(kid => kid.name?.trim() || kid.age !== '')
@@ -781,7 +977,7 @@ function cleanProfile(profile) {
     })
   }
 
-  cleaned.goals = cleaned.goals
+  const manualGoals = cleaned.goals
     .filter(goal => goal.name?.trim() && toNumber(goal.presentCost) > 0 && Number(goal.years) > 0)
     .map(goal => ({
       name: goal.name.trim(),
@@ -793,21 +989,89 @@ function cleanProfile(profile) {
       priority: goal.priority || 'Medium',
     }))
 
+  const autoGoals = buildAutoGoals(cleaned)
+  const existingNames = new Set(manualGoals.map(g => g.name.toLowerCase()))
+  cleaned.goals = [
+    ...manualGoals,
+    ...autoGoals
+      .filter(g => !existingNames.has(g.name.toLowerCase()))
+      .map(g => ({
+        name: g.name,
+        category: g.category,
+        presentCost: g.presentCost,
+        years: g.years,
+        inflationPct: g.inflationPct,
+        expectedReturnPct: g.expectedReturnPct,
+        priority: g.priority,
+      }))
+  ]
+
   return cleaned
 }
 
-function validate(profile) {
-  if (Number(profile.basics.desiredRetirementAge) <= Number(profile.basics.age)) {
-    return 'Desired retirement age must be greater than current age.'
-  }
-  if (profile.basics.parentsDependent && Number(profile.basics.dependentParentsCount) < 1) {
-    return 'Please enter at least 1 dependent parent, or select "No" for parent dependency.'
-  }
-  const partialKid = profile.basics.kids.find(kid => Boolean(kid.name?.trim()) !== (kid.age !== ''))
-  if (profile.basics.maritalStatus === 'married' && partialKid) {
-    return 'Please enter both name and age for each child, or remove the incomplete child row.'
-  }
-  return ''
+function buildAutoGoals(profile) {
+  const kids = (profile.basics?.kids || []).filter(kid => kid.name?.trim() || kid.age !== '')
+  const autoGoals = []
+
+  kids.forEach((kid, i) => {
+    const name = kid.name?.trim() || `Child ${i + 1}`
+    const age = Number(kid.age) || 0
+
+    autoGoals.push({
+      id: `${name}-education`,
+      name: `${name} higher education`,
+      category: 'childEducation',
+      presentCost: 2500000,
+      years: Math.max(1, 17 - age),
+      inflationPct: 10,
+      expectedReturnPct: 10,
+      priority: 'High',
+      auto: true,
+    })
+
+    autoGoals.push({
+      id: `${name}-marriage`,
+      name: `${name} marriage`,
+      category: 'marriage',
+      presentCost: 1500000,
+      years: Math.max(1, 22 - age),
+      inflationPct: 7,
+      expectedReturnPct: 9,
+      priority: 'Medium',
+      auto: true,
+    })
+  })
+
+  return autoGoals
+}
+
+function getDisplayGoals(profile) {
+  const manualGoals = (profile.goals || [])
+    .filter(goal => goal.name?.trim() && toNumber(goal.presentCost) > 0 && Number(goal.years) > 0)
+    .map((goal, index) => ({
+      id: `manual-${index}`,
+      name: goal.name.trim(),
+      category: goal.category,
+      presentCost: toNumber(goal.presentCost),
+      years: Number(goal.years),
+      inflationPct: Number(goal.inflationPct) || goalInflationMap[goal.category] || 6,
+      expectedReturnPct: Number(goal.expectedReturnPct) || 9,
+      priority: goal.priority || 'Medium',
+      auto: false,
+    }))
+
+  const autoGoals = buildAutoGoals(profile)
+  const existingNames = new Set(manualGoals.map(g => g.name.toLowerCase()))
+  const merged = [
+    ...manualGoals,
+    ...autoGoals.filter(g => !existingNames.has(g.name.toLowerCase()))
+  ].map(goal => ({
+    ...goal,
+    todayNeed: goal.presentCost,
+    futureNeed: futureValue(goal.presentCost, goal.years, goal.inflationPct),
+  }))
+
+  return merged.sort((a, b) => a.years - b.years)
 }
 
 function getSalaryPreview(profile) {
@@ -834,7 +1098,182 @@ function getCashflowPreview(profile) {
   const annualProrated = toNumber(profile.expenses.annual) / 12
   const emi = toNumber(profile.monthlyEmi)
   const monthlyExpenses = fixed + variable + annualProrated + emi
-  return { fixed, variable, annualProrated, emi, monthlyExpenses, monthlySurplus: monthlyIncome - monthlyExpenses }
+  return {
+    fixed,
+    variable,
+    annualProrated,
+    emi,
+    monthlyIncome,
+    monthlyExpenses,
+    monthlySurplus: monthlyIncome - monthlyExpenses
+  }
+}
+
+function computeTaxPreview(profile) {
+  const income = profile.income || {}
+  const salary = profile.salary || {}
+  const basics = profile.basics || {}
+  const tax = profile.tax || {}
+
+  const basicAnnual = toNumber(salary.monthlyBasic) * 12
+  const hraReceived = toNumber(salary.monthlyHra) * 12
+  const ltaReceived = toNumber(salary.monthlyLta) * 12
+  const specialAllowance = toNumber(salary.monthlySpecialAllowance) * 12
+  const monthlyBonus = toNumber(salary.monthlyBonus) * 12
+  const employerNps = toNumber(salary.monthlyEmployerNps) * 12
+  const employeeEpf = toNumber(salary.monthlyEmployeeEpf) * 12
+  const salaryProfessionalTax = toNumber(salary.monthlyProfessionalTax) * 12
+  const rentPaid = toNumber(salary.rentPaidMonthly) * 12
+  const annualGrossOverride = toNumber(salary.annualGross)
+
+  const salaryComponentsTotal = basicAnnual + hraReceived + ltaReceived + specialAllowance + monthlyBonus + employerNps
+  const fallbackIncome = (toNumber(income.monthlyAfterTax) + toNumber(income.otherMonthly)) * 12 + toNumber(income.bonusAnnual)
+  const grossIncome = (annualGrossOverride || salaryComponentsTotal || fallbackIncome) + toNumber(tax.otherAnnualIncome)
+
+  const standardOld = 50000
+  const standardNew = 75000
+
+  const metroRatio = ['Metro', 'Tier 1'].includes(basics.cityTier) ? 0.50 : 0.40
+  let autoHraExemption = 0
+  if (hraReceived > 0 && basicAnnual > 0 && rentPaid > 0) {
+    autoHraExemption = Math.max(
+      0,
+      Math.min(
+        hraReceived,
+        Math.max(0, rentPaid - 0.10 * basicAnnual),
+        metroRatio * basicAnnual
+      )
+    )
+  }
+
+  const hra = toNumber(tax.hraExemption) || autoHraExemption
+  const professionalTax = toNumber(tax.professionalTax) + salaryProfessionalTax
+  const deduction80C = Math.min(150000, toNumber(tax.deduction80C) + employeeEpf)
+  const deduction80CCD1B = Math.min(50000, toNumber(tax.nps80CCD1B))
+  const deduction80D = toNumber(tax.health80D)
+  const deduction80G = toNumber(tax.donation80G)
+  const deduction80E = toNumber(tax.educationLoan80E)
+  const deduction80TTA_TTB = toNumber(tax.interest80TTA_TTB)
+  const deduction80EEA = Math.min(150000, toNumber(tax.homeLoan80EEA))
+  const section24B = Math.min(200000, toNumber(tax.homeLoanInterest24B))
+  const lta = toNumber(tax.ltaExemption) || ltaReceived
+
+  const employerNpsOld = basicAnnual > 0 ? Math.min(employerNps, basicAnnual * 0.10) : employerNps
+  const employerNpsNew = basicAnnual > 0 ? Math.min(employerNps, basicAnnual * 0.14) : employerNps
+
+  const oldDeductions = standardOld + hra + lta + professionalTax + deduction80C + deduction80CCD1B + employerNpsOld + deduction80D + deduction80G + deduction80E + deduction80TTA_TTB + deduction80EEA + section24B
+  const newDeductions = standardNew + employerNpsNew
+
+  const oldTaxable = Math.max(0, grossIncome - oldDeductions)
+  const newTaxable = Math.max(0, grossIncome - newDeductions)
+
+  let oldTax = slabTaxOld(oldTaxable)
+  let newTax = slabTaxNewFY2627(newTaxable)
+
+  if (oldTaxable <= 500000) oldTax = 0
+  if (newTaxable <= 1200000) newTax = 0
+
+  oldTax = oldTax * 1.04
+  newTax = newTax * 1.04
+
+  return {
+    fyLabel: FY_LABEL,
+    grossIncome,
+    salaryComponentsTotal,
+    oldDeductions,
+    newDeductions,
+    oldTaxable,
+    newTaxable,
+    oldTax,
+    newTax,
+    preferredRegime: oldTax < newTax ? 'Old' : 'New',
+    savingsVsOther: Math.abs(oldTax - newTax),
+  }
+}
+
+function slabTaxOld(taxable) {
+  let tax = 0
+  if (taxable > 250000) tax += Math.min(taxable, 500000) - 250000 > 0 ? (Math.min(taxable, 500000) - 250000) * 0.05 : 0
+  if (taxable > 500000) tax += (Math.min(taxable, 1000000) - 500000) * 0.20
+  if (taxable > 1000000) tax += (taxable - 1000000) * 0.30
+  return Math.max(0, tax)
+}
+
+function slabTaxNewFY2627(taxable) {
+  const slabs = [
+    [400000, 0.00],
+    [800000, 0.05],
+    [1200000, 0.10],
+    [1600000, 0.15],
+    [2000000, 0.20],
+    [2400000, 0.25],
+    [Infinity, 0.30],
+  ]
+  let previous = 0
+  let tax = 0
+  for (const [limit, rate] of slabs) {
+    if (taxable <= previous) break
+    const taxableInSlab = Math.min(taxable, limit) - previous
+    tax += taxableInSlab * rate
+    previous = limit
+  }
+  return tax
+}
+
+function computeInsurancePreview(profile, monthlyExpenses, goals) {
+  const basics = profile.basics || {}
+  const liabilities = profile.liabilities || {}
+  const insurance = profile.insurance || {}
+  const kidsCount = (basics.kids || []).filter(k => k.name?.trim() || k.age !== '').length
+  const spouseCount = basics.maritalStatus === 'married' ? 1 : 0
+  const parents = basics.parentsDependent ? Math.max(1, Number(basics.dependentParentsCount) || 1) : 0
+  const dependents = spouseCount + kidsCount + parents
+  const liabilitiesTotal = Object.values(liabilities).reduce((sum, v) => sum + toNumber(v), 0)
+  const annualExpenses = (Number(monthlyExpenses) || 0) * 12
+  const dependentGoalTodayNeed = (goals || [])
+    .filter(goal => ['childEducation', 'marriage', 'education', 'medical', 'home'].includes(goal.category))
+    .reduce((sum, goal) => sum + toNumber(goal.todayNeed), 0)
+
+  const currentLifeCover = toNumber(insurance.life)
+  const currentHealthCover = toNumber(insurance.health)
+
+  let recommendedLifeCover = 0
+  let note = ''
+
+  if (dependents > 0) {
+    recommendedLifeCover = liabilitiesTotal + annualExpenses * 15 + dependentGoalTodayNeed
+    note = 'Because you have dependents, term cover should ideally protect liabilities, 15 years of family expenses and major family goals.'
+  } else {
+    recommendedLifeCover = Math.max(liabilitiesTotal + annualExpenses * 5, liabilitiesTotal)
+    note = 'If you have no financial dependents, life insurance is generally good to have rather than critical, but liabilities and some income replacement can still be protected.'
+  }
+
+  const recommendedHealthCover =
+    1000000 +
+    (spouseCount > 0 ? 500000 : 0) +
+    (kidsCount * 500000) +
+    (parents * 500000)
+
+  return {
+    currentLifeCover,
+    recommendedLifeCover,
+    lifeGap: Math.max(0, recommendedLifeCover - currentLifeCover),
+    currentHealthCover,
+    recommendedHealthCover,
+    healthGap: Math.max(0, recommendedHealthCover - currentHealthCover),
+    note,
+  }
+}
+
+function getCurrentMonthlyInvestments(profile) {
+  const direct = (profile.investments || []).reduce((sum, inv) => sum + toNumber(inv.monthlyAmount), 0)
+  const autoEpf = toNumber(profile.salary?.monthlyEmployeeEpf)
+  const autoNps = toNumber(profile.salary?.monthlyEmployerNps)
+  return direct + autoEpf + autoNps
+}
+
+function futureValue(present, years, inflationPct) {
+  return present * Math.pow(1 + (Number(inflationPct) || 0) / 100, Number(years) || 0)
 }
 
 function parseIndianNumber(value) {
@@ -856,7 +1295,17 @@ function toNumber(value) {
 function prettify(k) {
   return k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())
 }
-function fmt(n) {
+
+function fmtMoney(n) {
   if (n == null || isNaN(n)) return '—'
-  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0
+  }).format(Number(n))
+}
+
+function fmtCount(n) {
+  if (n == null || isNaN(n)) return '—'
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(n))
 }
