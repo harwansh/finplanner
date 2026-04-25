@@ -72,7 +72,9 @@ const empty = {
     deduction80C: '',
     nps80CCD1B: '',
     health80D: '',
+    health80DParents: '',
     homeLoanInterest24B: '',
+    homeLoan80EE: '',
     homeLoan80EEA: '',
     educationLoan80E: '',
     donation80G: '',
@@ -80,7 +82,9 @@ const empty = {
     hraExemption: '',
     ltaExemption: '',
     professionalTax: '',
-    otherAnnualIncome: ''
+    otherAnnualIncome: '',
+    capitalGain: '',
+    taxPaid: ''
   },
   investments: [],
   goals: [],
@@ -138,8 +142,10 @@ const salaryLabels = {
 const taxLabels = {
   deduction80C: '80C investments excluding salary EPF auto-added',
   nps80CCD1B: 'Extra self NPS 80CCD(1B), employer NPS auto-added',
-  health80D: 'Health insurance 80D',
+  health80D: 'Health insurance 80D Self / Family',
+  health80DParents: 'Health insurance 80D Parents',
   homeLoanInterest24B: 'Home loan interest 24(b)',
+  homeLoan80EE: 'Home loan 80EE',
   homeLoan80EEA: 'Affordable housing 80EEA',
   educationLoan80E: 'Education loan interest 80E',
   donation80G: 'Donation 80G',
@@ -148,6 +154,8 @@ const taxLabels = {
   ltaExemption: 'LTA exemption',
   professionalTax: 'Extra annual professional tax',
   otherAnnualIncome: 'Other annual taxable income',
+  capitalGain: 'Capital gain',
+  taxPaid: 'Total tax already paid / TDS',
 }
 
 const investmentCategories = [
@@ -436,8 +444,8 @@ export default function Home() {
         {activeTab === 'salary' && (
           <>
             <Section title="2. Salary structure">
-              <div className="section-note">
-                Salary inputs are used for tax comparison for {FY_LABEL}. Employee EPF is auto-added to 80C
+              <div className="section-note salary-tax-required-note">
+                For salaried tax calculation, Basic Salary, HRA received and E-PF Contribution are required. Salary inputs are used for tax comparison for {FY_LABEL}. Employee EPF is auto-added to 80C
                 and retirement investments. Employer NPS is auto-added to tax and retirement planning.
               </div>
               <Row>
@@ -583,7 +591,7 @@ export default function Home() {
           <Section title="9. Review and generate">
             <div className="review-grid">
               <Kpi label="FY" value={FY_LABEL} />
-              <Kpi label="Annual gross salary used" value={fmtMoney(taxPreview.grossIncome)} />
+              <Kpi label="Annual gross salary used" value={fmtMoney(salaryPreview.annualGrossUsed || taxPreview.grossIncome)} />
               <Kpi label="Monthly cash-flow surplus" value={fmtMoney(preview.monthlySurplus)} />
               <Kpi label="Goals included" value={fmtCount(displayGoals.length)} />
             </div>
@@ -1352,16 +1360,40 @@ function getDisplayGoals(profile) {
 
 function getSalaryPreview(profile) {
   const s = profile.salary || {}
+
+  const basicAnnual = toNumber(s.basicSalary) || toNumber(s.monthlyBasic) * 12
+  const hraAnnual = toNumber(s.hraReceived) || toNumber(s.monthlyHra) * 12
+  const ltaAnnual = toNumber(s.lta) || toNumber(s.monthlyLta) * 12
+  const flexAnnual = toNumber(s.flexibleCompPlan) || toNumber(s.monthlySpecialAllowance) * 12
+  const bonusAnnual = toNumber(s.bonusVariablePay) || toNumber(s.monthlyBonus) * 12
+  const employerNpsAnnual = toNumber(s.npsEmployer) || toNumber(s.monthlyEmployerNps) * 12
+  const employeeEpfAnnual = toNumber(s.epfContribution) || toNumber(s.monthlyEmployeeEpf) * 12
+  const rentAnnual = toNumber(s.rentPaid) || toNumber(s.rentPaidMonthly) * 12
+
   const annualComponents =
-    (toNumber(s.monthlyBasic) + toNumber(s.monthlyHra) + toNumber(s.monthlySpecialAllowance) +
-      toNumber(s.monthlyLta) + toNumber(s.monthlyBonus) + toNumber(s.monthlyEmployerNps)) * 12
+    basicAnnual +
+    hraAnnual +
+    ltaAnnual +
+    flexAnnual +
+    bonusAnnual +
+    employerNpsAnnual +
+    toNumber(s.internetAllowance) +
+    toNumber(s.telephoneReimbursement) +
+    toNumber(s.superannuation) +
+    toNumber(s.leaveEncashment) +
+    toNumber(s.shiftAllowance) +
+    toNumber(s.onCallAllowance) +
+    toNumber(s.internet) +
+    toNumber(s.teamParty) +
+    toNumber(s.awardsNonCashTaxable)
+
   return {
     annualComponents,
-    annualGrossUsed: toNumber(s.annualGross) || annualComponents,
-    hraAnnual: toNumber(s.monthlyHra) * 12,
-    rentAnnual: toNumber(s.rentPaidMonthly) * 12,
-    employeeEpfAnnual: toNumber(s.monthlyEmployeeEpf) * 12,
-    employerNpsAnnual: toNumber(s.monthlyEmployerNps) * 12,
+    annualGrossUsed: toNumber(s.grossEarning) || toNumber(s.annualGross) || annualComponents,
+    hraAnnual,
+    rentAnnual,
+    employeeEpfAnnual,
+    employerNpsAnnual,
   }
 }
 

@@ -311,6 +311,8 @@ def _upgrade_ai_output_contract(body):
 
 
 def respond(status, body):
+    if status == 200:
+        body = _upgrade_ai_output_contract(body)
     return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
 
 
@@ -406,10 +408,13 @@ def normalize_profile(profile):
             "goal": inv.get("goal") or infer_goal_from_category(category),
         })
     salary = cleaned.get("salary", {}) or {}
-    employee_epf_monthly = _num(salary.get("monthlyEmployeeEpf"))
-    employer_nps_monthly = _num(salary.get("monthlyEmployerNps"))
+    employee_epf_monthly = _num(salary.get("monthlyEmployeeEpf")) or (_num(salary.get("epfContribution")) / 12)
+    employer_nps_monthly = _num(salary.get("monthlyEmployerNps")) or (_num(salary.get("npsEmployer")) / 12)
 
-    if employee_epf_monthly > 0:
+    has_salary_epf = any(inv.get("source") == "salary" and inv.get("category") == "epf" for inv in normalized_investments)
+    has_salary_nps = any(inv.get("source") == "salary" and inv.get("category") == "nps" for inv in normalized_investments)
+
+    if employee_epf_monthly > 0 and not has_salary_epf:
         normalized_investments.append({
             "name": "Auto EPF from salary",
             "category": "epf",
@@ -420,7 +425,7 @@ def normalize_profile(profile):
             "source": "salary",
         })
 
-    if employer_nps_monthly > 0:
+    if employer_nps_monthly > 0 and not has_salary_nps:
         normalized_investments.append({
             "name": "Auto employer NPS from salary",
             "category": "nps",
