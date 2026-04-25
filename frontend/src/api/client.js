@@ -27,7 +27,7 @@ export async function analyze(profile) {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile })
+    body: JSON.stringify(profile)
   })
 
   const payload = await res.json().catch(async () => {

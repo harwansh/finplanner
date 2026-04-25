@@ -1657,3 +1657,169 @@ def analyze_profile(profile):
     return ai_overlay(cleaned, body) if "ai_overlay" in globals() else ai_first_overlay(cleaned, body)
 # ===== End SmartFinly final parsing and full-data guardrail v4 =====
 
+# ===== SmartFinly final Lambda handler override v4 =====
+# Fully self-contained response/error handling.
+# Last definition wins in Python.
+
+class _SmartFinlyInputError(Exception):
+    pass
+
+
+def _sf_response(status, body):
+    return {
+        "statusCode": status,
+        "headers": {
+            "Content-Type": "application/json",
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+            "Cache-Control": "no-store",
+        },
+        "body": json.dumps(body, ensure_ascii=False, allow_nan=False),
+    }
+
+
+def _sf_is_user_input_error(exc):
+    name = exc.__class__.__name__
+    return name in {"UserInputError", "_SmartFinlyInputError", "ValueError"}
+
+
+def _sf_unwrap_profile_payload(payload):
+    if (
+        isinstance(payload, dict)
+        and "profile" in payload
+        and isinstance(payload.get("profile"), dict)
+        and "basics" not in payload
+        and "income" not in payload
+    ):
+        return payload["profile"]
+    return payload
+
+
+def _sf_parse_lambda_event(event):
+    if not isinstance(event, dict):
+        return {}
+
+    method = (
+        event.get("requestContext", {}).get("http", {}).get("method")
+        or event.get("httpMethod")
+        or "POST"
+    ).upper()
+
+    if method == "OPTIONS":
+        return "__OPTIONS__"
+
+    raw = event.get("body")
+    if raw in (None, ""):
+        raw = "{}"
+
+    if event.get("isBase64Encoded"):
+        import base64
+        raw = base64.b64decode(raw).decode("utf-8")
+
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        raise _SmartFinlyInputError("Invalid JSON request body.")
+
+    if not isinstance(payload, dict):
+        raise _SmartFinlyInputError("Request body must be a JSON object.")
+
+    return _sf_unwrap_profile_payload(payload)
+
+
+def _sf_final_analyze_profile(profile):
+    profile = _sf_unwrap_profile_payload(profile)
+
+    if "align_profile_field_aliases" in globals():
+        profile = align_profile_field_aliases(profile)
+
+    if "normalize_profile" not in globals():
+        raise RuntimeError("normalize_profile is not defined in app.py")
+    if "cashflow" not in globals():
+        raise RuntimeError("cashflow is not defined in app.py")
+    if "compute_tax" not in globals():
+        raise RuntimeError("compute_tax is not defined in app.py")
+    if "build_plan" not in globals():
+        raise RuntimeError("build_plan is not defined in app.py")
+    if "build_summary" not in globals():
+        raise RuntimeError("build_summary is not defined in app.py")
+    if "build_report" not in globals():
+        raise RuntimeError("build_report is not defined in app.py")
+
+    cleaned = normalize_profile(profile)
+
+    if "validate_profile" in globals():
+        validate_profile(cleaned)
+
+    cashflow_data = cashflow(cleaned)
+    tax = compute_tax(cleaned)
+    plan = build_plan(cleaned, cashflow_data)
+    summary = build_summary(cleaned, cashflow_data, tax, plan)
+
+    if "truth_sheet" in globals():
+        truth = truth_sheet(summary, plan)
+    elif "build_truth_sheet" in globals():
+        truth = build_truth_sheet(summary, plan)
+    else:
+        truth = {"summary": summary, "plan": plan, "tax": tax}
+
+    report = build_report(summary, plan, truth)
+    body = {
+        "summary": summary,
+        "plan": plan,
+        "truthSheet": truth,
+        "report": report,
+    }
+
+    # Preserve AI overlay if available, but never let AI overlay break deterministic result.
+    try:
+        if "ai_overlay" in globals():
+            return ai_overlay(cleaned, body)
+        if "ai_first_overlay" in globals():
+            return ai_first_overlay(cleaned, body)
+    except Exception as exc:
+        print("AI overlay failed, returning deterministic result:", exc.__class__.__name__, str(exc))
+
+    return body
+
+
+def lambda_handler(event, context):
+    try:
+        payload = _sf_parse_lambda_event(event)
+
+        if payload == "__OPTIONS__":
+            return _sf_response(204, {})
+
+        payload = _sf_unwrap_profile_payload(payload)
+
+        if "align_profile_field_aliases" in globals():
+            payload = align_profile_field_aliases(payload)
+
+        if "_security_scan" in globals():
+            _security_scan(payload)
+
+        try:
+            print("SmartFinly accepted payload shape:", json.dumps({
+                "topLevelKeys": sorted(list(payload.keys())) if isinstance(payload, dict) else [],
+                "hasBasics": isinstance(payload, dict) and isinstance(payload.get("basics"), dict),
+                "hasIncome": isinstance(payload, dict) and isinstance(payload.get("income"), dict),
+                "hasSalary": isinstance(payload, dict) and isinstance(payload.get("salary"), dict),
+                "investmentCount": len(payload.get("investments") or []) if isinstance(payload, dict) else 0,
+                "goalCount": len(payload.get("goals") or []) if isinstance(payload, dict) else 0,
+            }, default=str))
+        except Exception:
+            pass
+
+        return _sf_response(200, _sf_final_analyze_profile(payload))
+
+    except Exception as exc:
+        message = str(exc)
+        if message == "__OPTIONS__":
+            return _sf_response(204, {})
+
+        if _sf_is_user_input_error(exc):
+            return _sf_response(400, {"error": message, "code": "INPUT_VALIDATION_ERROR"})
+
+        print("Unhandled SmartFinly error:", exc.__class__.__name__, message)
+        return _sf_response(500, {"error": "Internal error. Please try again later.", "code": "INTERNAL_ERROR", "debug": message[:300]})
+# ===== End SmartFinly final Lambda handler override v4 =====
