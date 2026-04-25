@@ -6,9 +6,18 @@ export async function analyze(profile) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ profile })
   })
+
+  const payload = await res.json().catch(async () => {
+    const text = await res.text().catch(() => '')
+    return { error: text || res.statusText }
+  })
+
   if (!res.ok) {
-    const txt = await res.text().catch(() => '')
-    throw new Error(`POST ${res.status}: ${txt || res.statusText}`)
+    const validationErrors = Array.isArray(payload.validationErrors)
+      ? `\n- ${payload.validationErrors.join('\n- ')}`
+      : ''
+    throw new Error(`${payload.error || `POST ${res.status}`}${validationErrors}`)
   }
-  return res.json()
+
+  return payload
 }
