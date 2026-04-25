@@ -1,6 +1,87 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Home from './pages/Home.jsx'
 import './trust.css'
+
+const pageMeta = {
+  '/': {
+    title: 'SmartFinly — AI Financial Planner for Salaried India',
+    description: 'Plan salary, tax, SIPs, insurance, liabilities, goals and retirement with educational AI guidance built for Indian families.',
+  },
+  '/planner': {
+    title: 'SmartFinly Planner — Salary, Tax, SIPs, Insurance and Goals',
+    description: 'Use the SmartFinly planner to turn salary, tax, SIPs, insurance, liabilities and goals into an educational AI planning report.',
+  },
+  '/learn': {
+    title: 'Learn Personal Finance for Salaried India — SmartFinly',
+    description: 'Plain-English guides for investments, loans, credit cards, taxes, insurance and financial planning in India.',
+  },
+  '/privacy': {
+    title: 'Privacy Policy — SmartFinly',
+    description: 'How SmartFinly handles financial planning inputs and what sensitive identifiers users should never enter.',
+  },
+  '/terms': {
+    title: 'Terms of Use — SmartFinly',
+    description: 'Terms for using SmartFinly educational AI financial planning tools and content.',
+  },
+  '/disclaimer': {
+    title: 'Disclaimer — SmartFinly',
+    description: 'SmartFinly is educational only and is not SEBI-registered investment advice, tax filing, insurance broking, lending or product execution.',
+  },
+  '/security': {
+    title: 'Security — SmartFinly',
+    description: 'SmartFinly security posture, sensitive-data boundaries and production deployment recommendations.',
+  },
+}
+
+function normalizePath(pathname) {
+  const cleaned = pathname.replace(/\/$/, '') || '/'
+  if (cleaned === '/home') return '/learn'
+  return pageMeta[cleaned] ? cleaned : '/'
+}
+
+function usePathname() {
+  const [path, setPath] = useState(() => normalizePath(window.location.pathname))
+
+  useEffect(() => {
+    const onPopState = () => setPath(normalizePath(window.location.pathname))
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  useEffect(() => {
+    if (window.location.pathname.replace(/\/$/, '') === '/home') {
+      window.history.replaceState({}, '', '/learn')
+      setPath('/learn')
+    }
+  }, [])
+
+  return [path, setPath]
+}
+
+function navigate(event, href, setPath) {
+  if (!href.startsWith('/')) return
+  event.preventDefault()
+  const next = normalizePath(href)
+  window.history.pushState({}, '', next)
+  setPath(next)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function useDocumentMeta(path) {
+  useEffect(() => {
+    const meta = pageMeta[path] || pageMeta['/']
+    document.title = meta.title
+    const description = document.querySelector('meta[name="description"]')
+    if (description) description.setAttribute('content', meta.description)
+    let canonical = document.querySelector('link[rel="canonical"]')
+    if (!canonical) {
+      canonical = document.createElement('link')
+      canonical.setAttribute('rel', 'canonical')
+      document.head.appendChild(canonical)
+    }
+    canonical.setAttribute('href', `https://www.smartfinly.com${path === '/' ? '/' : path}`)
+  }, [path])
+}
 
 function useProductionPrivacyGuard() {
   useEffect(() => {
@@ -18,24 +99,38 @@ function useProductionPrivacyGuard() {
   }, [])
 }
 
-function SiteHeader() {
+function SiteHeader({ path, setPath }) {
+  const navItems = [
+    ['/', 'Home'],
+    ['/planner', 'Planner'],
+    ['/learn', 'Learn'],
+    ['/security', 'Security'],
+    ['/privacy', 'Privacy'],
+  ]
+
   return (
     <header className="sf-header">
       <div className="sf-brand-lockup">
-        <a className="brand" href="#top" aria-label="SmartFinly home">SmartFinly</a>
+        <a className="brand" href="/" onClick={(event) => navigate(event, '/', setPath)} aria-label="SmartFinly home">SmartFinly</a>
         <span className="sf-brand-badge">AI planner for salaried India</span>
       </div>
       <nav className="sf-nav" aria-label="Primary navigation">
-        <a href="#how-it-works">How it works</a>
-        <a href="#features">Features</a>
-        <a href="#trust">Trust</a>
-        <a href="#planner">Planner</a>
+        {navItems.map(([href, label]) => (
+          <a
+            key={href}
+            href={href}
+            className={path === href ? 'active' : ''}
+            onClick={(event) => navigate(event, href, setPath)}
+          >
+            {label}
+          </a>
+        ))}
       </nav>
     </header>
   )
 }
 
-function LandingHero() {
+function LandingHero({ setPath }) {
   return (
     <section className="sf-top-hero" id="top" aria-label="SmartFinly overview">
       <div className="sf-hero-copy">
@@ -46,8 +141,8 @@ function LandingHero() {
           insurance gaps and retirement direction using deterministic calculations plus AI explanation.
         </p>
         <div className="sf-hero-actions">
-          <a className="sf-primary-link" href="#planner">Start free planner</a>
-          <a className="sf-secondary-link" href="#how-it-works">See how it works</a>
+          <a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Start free planner</a>
+          <a className="sf-secondary-link" href="/learn" onClick={(event) => navigate(event, '/learn', setPath)}>Read finance guides</a>
         </div>
         <div className="sf-hero-microcopy">
           No PAN, Aadhaar, OTP, bank account, UPI ID, password or brokerage login required.
@@ -109,7 +204,7 @@ function FeatureGrid() {
   )
 }
 
-function SecuritySection() {
+function SecuritySection({ setPath }) {
   return (
     <section className="sf-section sf-security" aria-label="Security and compliance boundaries">
       <div>
@@ -120,6 +215,11 @@ function SecuritySection() {
           banking credentials or product execution access, and it avoids recommendation language such as
           guaranteed returns or buy/sell calls.
         </p>
+        <div className="sf-inline-links">
+          <a href="/privacy" onClick={(event) => navigate(event, '/privacy', setPath)}>Privacy policy</a>
+          <a href="/disclaimer" onClick={(event) => navigate(event, '/disclaimer', setPath)}>Disclaimer</a>
+          <a href="/security" onClick={(event) => navigate(event, '/security', setPath)}>Security</a>
+        </div>
       </div>
       <div className="sf-security-list">
         <div><strong>Never enter</strong><span>PAN, Aadhaar, OTP, passwords, bank account numbers, UPI IDs or brokerage credentials.</span></div>
@@ -169,7 +269,140 @@ function FAQSection() {
   )
 }
 
-function SiteFooter() {
+function LearnPage({ setPath }) {
+  const guides = [
+    ['Investments', 'SIP basics, asset allocation, EPF, PPF, NPS, mutual funds and goal-linked investing.'],
+    ['Tax planning', 'Old vs new regime, HRA, 80C, 80D, NPS and salary-structure planning.'],
+    ['Loans', 'EMIs, home-loan affordability, prepayment decisions and debt-risk checks.'],
+    ['Credit cards', 'Responsible usage, rewards, interest traps, credit scores and repayment discipline.'],
+    ['Insurance', 'Life cover, health cover, critical illness and emergency-fund readiness.'],
+    ['Retirement', 'Retirement corpus, withdrawal assumptions, inflation and long-term investing.'],
+  ]
+
+  return (
+    <main className="sf-page">
+      <section className="sf-section-heading sf-page-hero">
+        <span>Learn</span>
+        <h1>Personal finance guides for salaried India.</h1>
+        <p>Use the guides to understand the concepts, then use the planner to connect them to your own numbers.</p>
+        <a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Open planner</a>
+      </section>
+      <section className="sf-feature-grid">
+        {guides.map(([title, body]) => (
+          <article className="sf-feature-card" key={title}>
+            <strong>{title}</strong>
+            <p>{body}</p>
+          </article>
+        ))}
+      </section>
+    </main>
+  )
+}
+
+function LegalPage({ type }) {
+  const content = useMemo(() => ({
+    privacy: {
+      kicker: 'Privacy policy',
+      title: 'Privacy-first financial planning boundaries.',
+      sections: [
+        ['What SmartFinly processes', 'The planner may process salary, expenses, liabilities, insurance, investments, tax and goal inputs to generate educational planning output.'],
+        ['What not to enter', 'Do not enter PAN, Aadhaar, OTP, passwords, bank account numbers, UPI IDs, brokerage credentials or other sensitive identifiers.'],
+        ['Demo vs production', 'The demo deployment is for sample data. Use the authenticated production deployment before collecting real user financial data.'],
+        ['User control', 'A production deployment should define retention, deletion and export controls before launch.'],
+      ],
+    },
+    terms: {
+      kicker: 'Terms of use',
+      title: 'Use SmartFinly as an educational planning tool.',
+      sections: [
+        ['Educational use', 'SmartFinly helps users understand personal-finance scenarios and does not replace a qualified professional.'],
+        ['No misuse', 'Do not use the planner to enter sensitive identifiers, credentials, unlawful content or another person’s data without consent.'],
+        ['No guarantees', 'Outputs depend on assumptions and user inputs. They are not guarantees of returns, tax savings or financial outcomes.'],
+        ['Availability', 'The app may change, pause or remove features as the product evolves.'],
+      ],
+    },
+    disclaimer: {
+      kicker: 'Disclaimer',
+      title: 'SmartFinly is not regulated financial advice.',
+      sections: [
+        ['Not investment advice', 'SmartFinly is not SEBI-registered investment advice, research analysis, portfolio management or product distribution.'],
+        ['Not tax or legal advice', 'Tax calculations are educational estimates and not tax filing, legal advice or professional certification.'],
+        ['Not insurance or lending', 'SmartFinly is not insurance broking, lending, credit underwriting or product execution.'],
+        ['Review assumptions', 'All outputs should be reviewed with qualified professionals before financial decisions.'],
+      ],
+    },
+    security: {
+      kicker: 'Security',
+      title: 'Security posture and production-readiness checklist.',
+      sections: [
+        ['Sensitive-data rejection', 'The backend rejects common sensitive identifiers such as PAN, Aadhaar, OTP, passwords, account numbers and UPI-like data.'],
+        ['Authenticated deployment', 'Use the Cognito + HTTP API JWT-authenticated SAM template for production deployments.'],
+        ['Rate limits', 'Protect Bedrock and API usage with API throttling, WAF rules and per-user application limits.'],
+        ['Logging', 'Production logs should never contain full financial payloads or sensitive user inputs.'],
+      ],
+    },
+  })[type], [type])
+
+  return (
+    <main className="sf-page sf-legal-page">
+      <section className="sf-section-heading sf-page-hero">
+        <span>{content.kicker}</span>
+        <h1>{content.title}</h1>
+      </section>
+      <section className="sf-legal-grid">
+        {content.sections.map(([title, body]) => (
+          <article className="sf-feature-card" key={title}>
+            <strong>{title}</strong>
+            <p>{body}</p>
+          </article>
+        ))}
+      </section>
+    </main>
+  )
+}
+
+function PlannerPage() {
+  return (
+    <main id="planner">
+      <PlannerIntro />
+      <Home />
+    </main>
+  )
+}
+
+function HomePage({ setPath }) {
+  return (
+    <>
+      <LandingHero setPath={setPath} />
+      <ConfidenceStrip />
+      <FeatureGrid />
+      <SecuritySection setPath={setPath} />
+      <section className="sf-section sf-product-preview">
+        <div className="sf-section-heading">
+          <span>Product preview</span>
+          <h2>The planner connects decisions users usually review separately.</h2>
+          <p>Cash flow, tax, goals, insurance and investment planning are presented together so trade-offs are visible.</p>
+        </div>
+        <div className="sf-feature-grid">
+          <article className="sf-feature-card"><strong>Cash-flow summary</strong><p>Income, expenses, EMIs, existing investments and surplus.</p></article>
+          <article className="sf-feature-card"><strong>Tax comparison</strong><p>Old/new regime context, deductions and tax already paid.</p></article>
+          <article className="sf-feature-card"><strong>Goal gap analysis</strong><p>Inflation-adjusted goals and monthly SIP requirement.</p></article>
+        </div>
+        <a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Try with demo profile</a>
+      </section>
+      <FAQSection />
+    </>
+  )
+}
+
+function SiteFooter({ setPath }) {
+  const links = [
+    ['/privacy', 'Privacy'],
+    ['/terms', 'Terms'],
+    ['/disclaimer', 'Disclaimer'],
+    ['/security', 'Security'],
+  ]
+
   return (
     <footer className="sf-footer" id="privacy">
       <div>
@@ -187,9 +420,11 @@ function SiteFooter() {
         </p>
       </div>
       <div>
-        <strong>Production readiness</strong>
-        <p>
-          Use <code>infrastructure/template.authenticated.yaml</code> before collecting real user financial data.
+        <strong>Site links</strong>
+        <p className="sf-footer-links">
+          {links.map(([href, label]) => (
+            <a key={href} href={href} onClick={(event) => navigate(event, href, setPath)}>{label}</a>
+          ))}
         </p>
       </div>
     </footer>
@@ -198,20 +433,22 @@ function SiteFooter() {
 
 export default function App() {
   useProductionPrivacyGuard()
+  const [path, setPath] = usePathname()
+  useDocumentMeta(path)
+
+  let page = <HomePage setPath={setPath} />
+  if (path === '/planner') page = <PlannerPage />
+  if (path === '/learn') page = <LearnPage setPath={setPath} />
+  if (path === '/privacy') page = <LegalPage type="privacy" />
+  if (path === '/terms') page = <LegalPage type="terms" />
+  if (path === '/disclaimer') page = <LegalPage type="disclaimer" />
+  if (path === '/security') page = <LegalPage type="security" />
 
   return (
     <div className="shell">
-      <SiteHeader />
-      <LandingHero />
-      <ConfidenceStrip />
-      <FeatureGrid />
-      <SecuritySection />
-      <main id="planner">
-        <PlannerIntro />
-        <Home />
-      </main>
-      <FAQSection />
-      <SiteFooter />
+      <SiteHeader path={path} setPath={setPath} />
+      {page}
+      <SiteFooter setPath={setPath} />
     </div>
   )
 }
