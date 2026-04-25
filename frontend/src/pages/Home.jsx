@@ -274,6 +274,8 @@ export default function Home() {
         </p>
       </div>
 
+      <ComplianceBanner />
+
       <form onSubmit={submit}>
         <div className="tabs-card">
           <div className="tabs">
@@ -590,6 +592,22 @@ function normalizeInsuranceForOutput(rawInsurance = {}) {
     note: rawInsurance.note || rawInsurance.lifeNote || 'Insurance need uses dependents, liabilities, expenses, existing assets and goal gaps.',
   }
 }
+
+
+function ComplianceBanner() {
+  return (
+    <div className="sf-compliance-banner">
+      <strong>Educational / sampling planner only.</strong> This tool does not provide SEBI-registered investment advice, RBI-regulated lending, guaranteed returns, portfolio execution, or product selling. Do not enter PAN, Aadhaar, bank account numbers, passwords, OTPs, or other sensitive identifiers.
+      <div className="sf-compliance-grid">
+        <span className="sf-compliance-pill">No guaranteed returns</span>
+        <span className="sf-compliance-pill">No product execution</span>
+        <span className="sf-compliance-pill">No sensitive ID required</span>
+        <span className="sf-compliance-pill">Verify with registered advisor</span>
+      </div>
+    </div>
+  )
+}
+
 
 function Results({ result, inputData, cashflowPreview, taxPreview, insurancePreview, displayGoals }) {
   const { summary, plan, report, error } = result || {}

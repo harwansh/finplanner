@@ -13,6 +13,9 @@ bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
 
 CORS_HEADERS = {
     "Content-Type": "application/json",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Cache-Control": "no-store",
 }
 
 ASSUMPTIONS = {
