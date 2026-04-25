@@ -1,11 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: FinPlanner - Open API + Bedrock (no auth, no storage)
+Description: FinPlanner - Lambda Function URL + Bedrock
 
 Parameters:
-  AppName:
-    Type: String
-    Default: finplanner
   BedrockModelId:
     Type: String
     Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
@@ -13,51 +10,33 @@ Parameters:
     Type: String
     Default: us-east-1
 
-Globals:
-  Function:
-    Runtime: python3.12
-    Timeout: 120
-    MemorySize: 1024
-    Architectures: [arm64]
-    Environment:
-      Variables:
-        BEDROCK_MODEL_ID: !Ref BedrockModelId
-        BEDROCK_REGION: !Ref BedrockRegion
-
 Resources:
-  Api:
-    Type: AWS::Serverless::Api
-    Properties:
-      StageName: prod
-      Cors:
-        AllowMethods: "'POST,OPTIONS'"
-        AllowHeaders: "'Content-Type'"
-        AllowOrigin: "'*'"
-      MethodSettings:
-        - ResourcePath: "/*"
-          HttpMethod: "*"
-          ThrottlingRateLimit: 5
-          ThrottlingBurstLimit: 10
-
   AnalyzeFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: ../backend/src/analyze/
       Handler: app.handler
+      Runtime: python3.12
+      Architectures: [arm64]
+      Timeout: 300
+      MemorySize: 1024
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_REGION: !Ref BedrockRegion
       Policies:
         - Statement:
             - Effect: Allow
               Action: bedrock:InvokeModel
               Resource: "*"
-      Events:
-        Analyze:
-          Type: Api
-          Properties:
-            RestApiId: !Ref Api
-            Path: /analyze
-            Method: post
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins: ["*"]
+          AllowMethods: ["POST"]
+          AllowHeaders: ["Content-Type"]
 
 Outputs:
   ApiUrl:
-    Description: REST API endpoint
-    Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/prod
+    Description: Lambda Function URL
+    Value: !GetAtt AnalyzeFunctionUrl.FunctionUrl
