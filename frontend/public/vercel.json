@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    { "source": "/home", "destination": "/learn", "permanent": true },
+    { "source": "/home/", "destination": "/learn", "permanent": true }
+  ],
+  "rewrites": [
+    { "source": "/planner", "destination": "/index.html" },
+    { "source": "/learn", "destination": "/index.html" },
+    { "source": "/privacy", "destination": "/index.html" },
+    { "source": "/terms", "destination": "/index.html" },
+    { "source": "/disclaimer", "destination": "/index.html" },
+    { "source": "/security", "destination": "/index.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
