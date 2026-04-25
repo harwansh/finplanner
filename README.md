@@ -1,200 +1,314 @@
-# FinPlanner — AI Personal Finance Planner on AWS
+# SmartFinly / FinPlanner — AI Personal Finance Planner on AWS
 
-A complete starter app you can deploy to your AWS account.
+SmartFinly is an AI-assisted personal finance planning app for Indian users. It collects structured inputs across profile, salary, tax, liabilities, insurance, investments, goals, and cash flow, then generates an educational financial plan using deterministic Python calculations plus Amazon Bedrock.
 
-**What you get:**
-- Sign up / sign in via **Cognito**
-- Multi-step profile form covering all 11 categories from your spec
-- Profile data stored in **DynamoDB**
-- **Bedrock (Claude)** generates net worth, plus 5 must-have / 5 good-to-have / 5 optional financial goals tailored to the user
-- React frontend hosted on **S3 + CloudFront** (or run locally)
-- Deployed via **AWS SAM** — one command
+> **Current status:** this repository is an MVP/demo build. The default `infrastructure/template.yaml` deploys a simple analysis Lambda URL for demos. For production or real user financial data, use `infrastructure/template.authenticated.yaml`, which adds Cognito authentication, an HTTP API JWT authorizer, and throttling.
 
 ---
 
-## Architecture
+## What you get
 
+- React + Vite frontend
+- Multi-step finance form for Indian salaried/family planning use cases
+- Salary, tax, cash-flow, liabilities, insurance, investment, and goal inputs
+- Backend validation and sensitive-data rejection for PAN, Aadhaar, OTP, bank/account identifiers, UPI, passwords, tokens, and similar values
+- Deterministic backend finance calculations before AI generation
+- Amazon Bedrock-powered educational planning output
+- Demo deployment template for quick testing
+- Authenticated production-ready SAM template scaffold
+
+---
+
+## Important legal and safety notice
+
+SmartFinly is an educational AI financial planning sample. It is **not** a SEBI-registered investment adviser, research analyst, portfolio manager, insurance broker, tax filing service, lending platform, or product execution platform.
+
+Do **not** enter PAN, Aadhaar, OTP, passwords, bank account numbers, UPI IDs, brokerage credentials, or other sensitive identifiers.
+
+Do **not** use the unauthenticated demo deployment for real user financial data.
+
+---
+
+## Architecture options
+
+### Demo / MVP deployment
+
+The default template is optimized for fast testing:
+
+```text
+React frontend ──► Lambda Function URL ──► Lambda ──► Bedrock
 ```
-React (S3+CloudFront)  ──►  API Gateway  ──►  Lambda (Python)
-       │                         │                    │
-       └── Cognito JWT ──────────┘                    ├─► DynamoDB (profiles)
-                                                       └─► Bedrock (Claude Sonnet)
+
+File:
+
+```text
+infrastructure/template.yaml
 ```
 
----
+Use this only for demos, local testing, and controlled sample data.
 
-## 1. Prerequisites
+### Authenticated production scaffold
 
-Install once on your machine:
+The authenticated template adds Cognito and an HTTP API JWT authorizer:
 
-1. **AWS account** with admin or sufficient privileges (Cognito, IAM, Lambda, API Gateway, DynamoDB, Bedrock, S3, CloudFront).
-2. **AWS CLI v2** — `aws --version` should show 2.x. Configure with `aws configure`.
-3. **AWS SAM CLI** — install from https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html
-4. **Python 3.12** (or 3.11)
-5. **Node.js 20+** and npm
-6. **Docker** (SAM uses it for builds; Docker Desktop is fine)
-
----
-
-## 2. Enable Bedrock model access (one-time)
-
-This is the step people most often miss.
-
-1. Open AWS Console → **Bedrock** → **Model access** (left nav).
-2. Click **Modify model access** and request access to **Anthropic Claude** models. Approval is usually instant.
-3. Pick a region where the Claude model is enabled. Recommended: `us-east-1`.
-4. The first time you invoke an Anthropic model, you may need to fill out a one-time **First Time Use (FTU)** form at AWS Console → Bedrock → first invocation prompt.
-
-The default model id used in this project is `us.anthropic.claude-sonnet-4-5-20250929-v1:0`. If your account doesn't have that one, edit the `BedrockModelId` parameter in `infrastructure/template.yaml` to whatever model id is shown for Anthropic Claude in your Bedrock console (Models → Anthropic).
-
----
-
-## 3. Project layout
-
+```text
+React frontend ──► HTTP API ──► Lambda ──► Bedrock
+       │              ▲
+       └─ Cognito JWT ┘
 ```
+
+File:
+
+```text
+infrastructure/template.authenticated.yaml
+```
+
+This is the recommended starting point before collecting real user financial data. It includes:
+
+- Cognito User Pool
+- Cognito User Pool Client
+- HTTP API JWT authorizer
+- `Authorization: Bearer <token>` support
+- API throttling
+- CORS for SmartFinly and localhost development origins
+
+---
+
+## Project layout
+
+```text
 finplanner/
 ├── backend/
 │   └── src/
-│       ├── common/utils.py
-│       ├── profile/app.py        # GET/PUT /profile
-│       └── analyze/app.py        # POST /analyze (Bedrock)
-├── frontend/                     # React + Vite
-└── infrastructure/template.yaml  # SAM (Cognito, DynamoDB, Lambda, API GW)
+│       └── analyze/
+│           └── app.py                 # POST analyze endpoint, validation, calculations, Bedrock call
+├── frontend/
+│   ├── src/
+│   │   ├── api/client.js              # API client, optional bearer-token support
+│   │   ├── pages/Home.jsx             # Main planner UI
+│   │   └── App.jsx
+│   └── package.json
+└── infrastructure/
+    ├── template.yaml                  # Demo Lambda Function URL deployment
+    └── template.authenticated.yaml    # Authenticated Cognito + HTTP API deployment scaffold
 ```
 
 ---
 
-## 4. Deploy the backend
+## Prerequisites
+
+Install once:
+
+1. AWS account with permissions for Lambda, IAM, Bedrock, and optionally Cognito/API Gateway.
+2. AWS CLI v2.
+3. AWS SAM CLI.
+4. Python 3.12 or 3.11.
+5. Node.js 20+ and npm.
+6. Docker, if your SAM build flow requires it.
+
+---
+
+## Enable Bedrock model access
+
+1. Open AWS Console → **Bedrock** → **Model access**.
+2. Enable access to your chosen model.
+3. Use a region where that model is available. `us-east-1` is the default in this repo.
+4. If Bedrock requires a first-time-use form, complete it in the AWS Console.
+
+The current default model ID is:
+
+```text
+amazon.nova-pro-v1:0
+```
+
+You can change it with the `BedrockModelId` parameter in the SAM template.
+
+---
+
+## Deploy the demo backend
+
+Use this for quick testing only.
 
 ```bash
 cd infrastructure
-sam build
-sam deploy --guided
+sam build -t template.yaml
+sam deploy --guided -t template.yaml
 ```
 
-When prompted by `--guided`:
+Suggested guided values:
 
 | Prompt | Answer |
 |---|---|
-| Stack name | `finplanner` |
-| AWS Region | `us-east-1` (or your choice with Bedrock enabled) |
-| Parameter AppName | `finplanner` |
-| Parameter BedrockModelId | (keep default or your chosen model id) |
-| Parameter BedrockRegion | `us-east-1` |
+| Stack name | `smartfinly-demo` |
+| AWS Region | `us-east-1` or your Bedrock-enabled region |
+| Parameter BedrockModelId | keep default or use your available Bedrock model ID |
+| Parameter BedrockRegion | `us-east-1` or your Bedrock region |
 | Confirm changes before deploy | `y` |
 | Allow IAM role creation | `Y` |
 | Disable rollback | `N` |
 | Save arguments to samconfig.toml | `Y` |
 
-After deploy completes, you'll see **Outputs**:
-
-```
-ApiUrl              https://abcd1234.execute-api.us-east-1.amazonaws.com/prod
-UserPoolId          us-east-1_AbCdEfGhI
-UserPoolClientId    1a2b3c4d5e6f7g8h9i0j
-Region              us-east-1
-```
-
-Copy these. You'll paste them into the frontend in the next step.
-
-For future deploys, just run `sam build && sam deploy` (no `--guided`).
+The output includes `ApiUrl`. Use that as `VITE_API_URL` in the frontend.
 
 ---
 
-## 5. Configure & run the frontend
+## Deploy the authenticated backend
+
+Use this before real users or real financial data.
 
 ```bash
-cd ../frontend
+cd infrastructure
+sam build -t template.authenticated.yaml
+sam deploy --guided -t template.authenticated.yaml
+```
+
+Suggested guided values:
+
+| Prompt | Answer |
+|---|---|
+| Stack name | `smartfinly-prod` |
+| AWS Region | `us-east-1` or your Bedrock-enabled region |
+| Parameter BedrockModelId | keep default or use your available Bedrock model ID |
+| Parameter BedrockRegion | `us-east-1` or your Bedrock region |
+| Parameter AllowedOrigin | `https://www.smartfinly.com` |
+| Confirm changes before deploy | `y` |
+| Allow IAM role creation | `Y` |
+| Disable rollback | `N` |
+| Save arguments to samconfig.toml | `Y` |
+
+Outputs:
+
+```text
+ApiUrl
+UserPoolId
+UserPoolClientId
+Region
+```
+
+The frontend API client already supports an optional Cognito access token:
+
+```js
+await analyze(profile, accessToken)
+```
+
+If no token is passed, the demo deployment still works. The authenticated deployment requires the frontend to pass `Authorization: Bearer <token>`.
+
+---
+
+## Configure and run the frontend
+
+```bash
+cd frontend
 cp .env.example .env
-# Edit .env and fill in the four values from the SAM outputs above
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`.
+Set `.env` for demo mode:
 
-Test the full flow locally:
+```env
+VITE_API_URL=https://your-demo-lambda-url.lambda-url.us-east-1.on.aws/
+```
 
-1. Click **Sign in** → switch to **Sign up** → register an email.
-2. Cognito emails you a 6-digit code → enter it on the confirm screen.
-3. You're auto-logged in and routed to **Onboarding**.
-4. Fill the 9 steps, hit **Save & analyze**.
-5. Dashboard shows your computed net worth + the 15 AI-generated goals.
+Set `.env` for authenticated mode:
+
+```env
+VITE_API_URL=https://your-api-id.execute-api.us-east-1.amazonaws.com/analyze
+VITE_AWS_REGION=us-east-1
+VITE_USER_POOL_ID=your-user-pool-id
+VITE_USER_POOL_CLIENT_ID=your-user-pool-client-id
+```
+
+Open:
+
+```text
+http://localhost:5173
+```
 
 ---
 
-## 6. Deploy the frontend to AWS
+## Frontend deployment
 
-Two easy options.
+### Option A: AWS Amplify Hosting
 
-### Option A: AWS Amplify Hosting (simplest)
+1. Push this repo to GitHub.
+2. AWS Console → Amplify → Host web app.
+3. Choose the repo.
+4. Set app root to `frontend`.
+5. Build command: `npm run build`.
+6. Output directory: `dist`.
+7. Add the environment variables from the backend deployment outputs.
+8. Deploy.
 
-1. Push your code to GitHub.
-2. AWS Console → **Amplify** → **Host a web app** → connect your repo.
-3. Build settings: monorepo. App root = `frontend`. Build command `npm run build`, output directory `dist`.
-4. Add environment variables (`VITE_AWS_REGION`, `VITE_USER_POOL_ID`, `VITE_USER_POOL_CLIENT_ID`, `VITE_API_URL`) from SAM outputs.
-5. Deploy. Amplify gives you a URL like `https://main.d1234.amplifyapp.com`.
-
-### Option B: S3 + CloudFront (manual)
+### Option B: S3 + CloudFront
 
 ```bash
 cd frontend
 npm run build
-aws s3 mb s3://finplanner-web-<your-unique-suffix>
-aws s3 sync dist s3://finplanner-web-<your-unique-suffix>
-# then create a CloudFront distribution pointing at the bucket
+aws s3 mb s3://smartfinly-web-<your-unique-suffix>
+aws s3 sync dist s3://smartfinly-web-<your-unique-suffix>
 ```
 
-After hosting, update CORS if needed by tightening `AllowOrigin` in `template.yaml` from `'*'` to your real domain and redeploying.
+Then create a CloudFront distribution pointing at the bucket.
 
 ---
 
-## 7. How it works (data flow)
+## Data flow
 
-1. User signs up → Cognito creates a user, emails confirmation code, returns JWT on sign in.
-2. Frontend attaches the JWT in the `Authorization` header on every API call.
-3. API Gateway's Cognito authorizer validates the JWT and injects `claims.sub` (the user id) into the Lambda event.
-4. **`profile` Lambda** uses `sub` as the DynamoDB partition key → each user only ever sees their own data.
-5. **`analyze` Lambda**:
-   - Reads the user's profile from DynamoDB.
-   - Computes net worth, surplus, savings rate, emergency-fund months **deterministically in Python** (no AI hallucinations on math).
-   - Sends the profile + summary to Bedrock with a strict system prompt asking for exactly 15 goals in JSON.
-   - Returns `{summary, goals}`.
+### Demo mode
 
----
+1. User fills the planner form.
+2. Frontend posts the structured profile to the Lambda Function URL.
+3. Lambda validates and normalizes the payload.
+4. Lambda computes finance summaries deterministically.
+5. Lambda sends the sanitized planning context to Bedrock.
+6. Lambda returns the educational plan.
 
-## 8. Cost expectations
+### Authenticated mode
 
-For a single user testing:
-- DynamoDB on-demand: ~$0
-- Lambda + API Gateway: ~$0 (free tier covers it)
-- Cognito: free up to 50,000 MAUs
-- **Bedrock**: this is the main variable. Each `/analyze` call sends ~1–2k input tokens and gets ~2–3k output tokens. At Sonnet 4.5 rates that's roughly $0.01–$0.04 per analysis.
-- S3 + CloudFront: pennies/month for low traffic.
+1. User signs in with Cognito.
+2. Frontend sends `Authorization: Bearer <accessToken>` with the request.
+3. HTTP API validates the JWT.
+4. Lambda receives the authenticated request.
+5. Lambda validates, computes, invokes Bedrock, and returns the plan.
 
 ---
 
-## 9. Customization & next steps
+## Security notes
 
-- **Swap the model:** edit `BedrockModelId` in `template.yaml` (e.g. to Haiku for cheaper, Opus 4.7 for highest quality) and redeploy.
-- **Add more goals:** change the count and bucket names in the `SYSTEM_PROMPT` inside `backend/src/analyze/app.py`.
-- **Lock down CORS:** in `template.yaml`, change `AllowOrigin: "'*'"` to your real domain.
-- **Encrypt at rest:** DynamoDB uses AWS-owned keys by default. For PII like financial data in production, switch to a customer-managed KMS key.
-- **Add email alerts** on big plan changes via SNS + EventBridge.
-- **Charts:** the dashboard is plain numbers — drop in Recharts to visualize asset allocation and goal progress.
+Before production launch:
+
+- Use `template.authenticated.yaml`, not the unauthenticated demo Function URL.
+- Remove any production logs that include full financial payloads.
+- Add a Privacy Policy, Terms, Disclaimer, and Security page.
+- Add request throttling and/or WAF rules.
+- Add app-level rate limits for Bedrock usage.
+- Add unit tests for tax, cash-flow, goal projections, insurance gap, and sensitive-data rejection.
+- Define data retention and deletion policies.
+- Use a customer-managed KMS key if storing personal financial data.
 
 ---
 
-## 10. Tearing it down
+## Cost expectations
 
-When you're done testing and don't want to be charged:
+For light demo use:
 
-```bash
-cd infrastructure
-sam delete --stack-name finplanner
-```
+- Lambda: usually low or free-tier covered
+- Bedrock: depends on model and token volume
+- HTTP API / Cognito: low for small usage
+- S3 + CloudFront or Amplify: usually low for low traffic
 
-Then in the Amplify console, delete the app (if you used Option A), or empty + delete the S3 bucket (Option B).
+Bedrock is the main variable cost. Add rate limits before public launch.
+
+---
+
+## Customization
+
+- Change the model: update `BedrockModelId` in the SAM template.
+- Change assumptions: edit constants in `backend/src/analyze/app.py`.
+- Add charts: use a charting library in the frontend dashboard.
+- Add persistence: introduce a profile table keyed by Cognito `sub`.
+- Add exports: generate PDF reports from the final educational plan.
 
 ---
 
@@ -202,12 +316,29 @@ Then in the Amplify console, delete the app (if you used Option A), or empty + d
 
 | Problem | Fix |
 |---|---|
-| `AccessDeniedException` calling Bedrock | Enable model access in Bedrock console (step 2). Wait 1–2 min. |
-| `ValidationException: model not found` | The model ID isn't in your region. Pick the model id shown in your Bedrock console. |
-| Confirmation email never arrives | Check spam. Cognito's free tier sends from a generic AWS sender; for production, wire it to SES. |
-| CORS error in browser | Make sure `VITE_API_URL` matches the deployed `ApiUrl` exactly, including `/prod`. |
-| `model returned non-JSON` in /analyze response | Lower `temperature` further (already 0.2) or shorten the system prompt. Larger / smarter models are more reliable here. |
+| `AccessDeniedException` calling Bedrock | Enable model access in Bedrock console and redeploy if needed. |
+| `ValidationException: model not found` | Use a Bedrock model ID available in your selected region. |
+| CORS error | Confirm `VITE_API_URL` and allowed origins in the SAM template. |
+| 401/403 in authenticated mode | Sign in again and make sure the frontend sends the Cognito access token. |
+| Missing API URL | Set `VITE_API_URL` in `frontend/.env` or hosting environment variables. |
+| Bedrock cost spike | Add API throttling, WAF, and app-level per-user limits. |
 
 ---
 
-That's it. Code is intentionally minimal and documented — easy to read, easy to extend.
+## Teardown
+
+Demo stack:
+
+```bash
+cd infrastructure
+sam delete --stack-name smartfinly-demo
+```
+
+Authenticated stack:
+
+```bash
+cd infrastructure
+sam delete --stack-name smartfinly-prod
+```
+
+Also delete any Amplify apps, CloudFront distributions, or S3 buckets you created for frontend hosting.
