@@ -97,9 +97,24 @@ jobs:
             --cache-control "no-cache,no-store,must-revalidate" \
             --content-type "text/html"
 
+      - name: Check CloudFront distribution secret
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only == 'true') }}
+        id: cloudfront
+        run: |
+          if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "CLOUDFRONT_DISTRIBUTION_ID not set. Skipping invalidation."
+          fi
+        env:
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
+
       - name: Invalidate CloudFront
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only == 'true') && secrets.CLOUDFRONT_DISTRIBUTION_ID != '' }}
+        if: ${{ steps.cloudfront.outputs.enabled == 'true' }}
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
             --paths "/*"
+        env:
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
