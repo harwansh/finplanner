@@ -71,6 +71,12 @@ const pageMeta = {
   }])),
 }
 
+function trackEvent(name, detail = {}) {
+  window.dispatchEvent(new CustomEvent('smartfinly:event', { detail: { name, ...detail } }))
+  if (window.plausible) window.plausible(name, { props: detail })
+  if (import.meta.env.DEV) console.debug('[SmartFinly event]', name, detail)
+}
+
 function normalizePath(pathname) {
   const cleaned = pathname.replace(/\/$/, '') || '/'
   if (cleaned === '/home') return '/learn'
@@ -96,9 +102,10 @@ function usePathname() {
   return [path, setPath]
 }
 
-function navigate(event, href, setPath) {
+function navigate(event, href, setPath, eventName = 'navigation_click') {
   if (!href.startsWith('/')) return
   event.preventDefault()
+  trackEvent(eventName, { target: href })
   const next = normalizePath(href)
   window.history.pushState({}, '', next)
   setPath(next)
@@ -118,6 +125,7 @@ function useDocumentMeta(path) {
       document.head.appendChild(canonical)
     }
     canonical.setAttribute('href', `https://www.smartfinly.com${path === '/' ? '/' : path}`)
+    trackEvent('page_view', { path })
   }, [path])
 }
 
@@ -172,8 +180,8 @@ function LandingHero({ setPath }) {
           insurance gaps and retirement direction using deterministic calculations plus AI explanation.
         </p>
         <div className="sf-hero-actions">
-          <a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Start free planner</a>
-          <a className="sf-secondary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Try demo profile</a>
+          <a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath, 'start_planner_click')}>Start free planner</a>
+          <a className="sf-secondary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath, 'demo_profile_click')}>Try demo profile</a>
         </div>
         <div className="sf-hero-microcopy">
           No PAN, Aadhaar, OTP, bank account, UPI ID, password or brokerage login required.
@@ -181,7 +189,12 @@ function LandingHero({ setPath }) {
       </div>
 
       <div className="sf-proof-card sf-report-card" id="trust">
-        <strong>What the report covers</strong>
+        <strong>Sample report preview</strong>
+        <div className="sf-score-preview">
+          <span>Plan readiness</span>
+          <strong>72%</strong>
+          <em>Illustrative demo score</em>
+        </div>
         <div className="sf-mini-report">
           <span>Cash-flow surplus</span>
           <span>Tax regime context</span>
@@ -202,6 +215,16 @@ function TrustBar() {
       <div><strong>No</strong><span>PAN / Aadhaar / OTP</span></div>
       <div><strong>India</strong><span>salary + tax context</span></div>
       <div><strong>AI + math</strong><span>deterministic first</span></div>
+    </section>
+  )
+}
+
+function StatusStrip() {
+  return (
+    <section className="sf-status-strip" aria-label="SmartFinly service status">
+      <span className="sf-status-dot" aria-hidden="true" />
+      <strong>Planner online</strong>
+      <p>Educational AI generation is available. If generation fails, your inputs are not saved by this demo frontend.</p>
     </section>
   )
 }
@@ -298,7 +321,7 @@ function SecuritySection({ setPath }) {
 }
 
 function PlannerIntro() {
-  return <section className="sf-planner-intro" aria-label="Planner start"><span className="sf-kicker">Try the planner</span><h2>Start with the demo profile or build your own plan step by step.</h2><p>The planner below is intentionally detailed because real financial decisions connect across salary, taxes, debt, insurance, investments and goals. Use the demo profile for a fast preview.</p></section>
+  return <section className="sf-planner-intro" aria-label="Planner start"><span className="sf-kicker">Try the planner</span><h2>Start with the demo profile or build your own plan step by step.</h2><p>The planner below is intentionally detailed because real financial decisions connect across salary, taxes, debt, insurance, investments and goals. Use the demo profile for a fast preview.</p><button className="sf-print-button" type="button" onClick={() => { trackEvent('print_plan_click'); window.print() }}>Print or save report as PDF</button></section>
 }
 
 function FAQSection() {
@@ -320,11 +343,11 @@ function LearnPage({ setPath }) {
     ['Insurance', 'Life cover, health cover, critical illness and emergency-fund readiness.', '/insurance-gap-calculator'],
     ['Retirement', 'Retirement corpus, withdrawal assumptions, inflation and long-term investing.', '/retirement-planner-india'],
   ]
-  return <main className="sf-page"><section className="sf-section-heading sf-page-hero"><span>Learn</span><h1>Personal finance guides for salaried India.</h1><p>Use the guides to understand the concepts, then use the planner to connect them to your own numbers.</p><a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Open planner</a></section><section className="sf-feature-grid">{guides.map(([title, body, href]) => <article className="sf-feature-card" key={title}><strong>{title}</strong><p>{body}</p><a href={href} onClick={(event) => navigate(event, href, setPath)}>Explore</a></article>)}</section></main>
+  return <main className="sf-page"><section className="sf-section-heading sf-page-hero"><span>Learn</span><h1>Personal finance guides for salaried India.</h1><p>Use the guides to understand the concepts, then use the planner to connect them to your own numbers.</p><a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath, 'learn_to_planner_click')}>Open planner</a></section><section className="sf-feature-grid">{guides.map(([title, body, href]) => <article className="sf-feature-card" key={title}><strong>{title}</strong><p>{body}</p><a href={href} onClick={(event) => navigate(event, href, setPath)}>Explore</a></article>)}</section></main>
 }
 
 function SeoLandingPage({ page, setPath }) {
-  return <main className="sf-page sf-seo-page"><section className="sf-section-heading sf-page-hero"><span>{page.kicker}</span><h1>{page.title}</h1><p>{page.description}</p><a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Open SmartFinly planner</a></section><section className="sf-legal-grid">{page.bullets.map((bullet) => <article className="sf-feature-card" key={bullet}><strong>{bullet}</strong><p>Use SmartFinly to connect this planning area with cash flow, tax, goals, insurance and retirement context.</p></article>)}</section><FAQSection /></main>
+  return <main className="sf-page sf-seo-page"><section className="sf-section-heading sf-page-hero"><span>{page.kicker}</span><h1>{page.title}</h1><p>{page.description}</p><a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath, 'seo_to_planner_click')}>Open SmartFinly planner</a></section><section className="sf-legal-grid">{page.bullets.map((bullet) => <article className="sf-feature-card" key={bullet}><strong>{bullet}</strong><p>Use SmartFinly to connect this planning area with cash flow, tax, goals, insurance and retirement context.</p></article>)}</section><FAQSection /></main>
 }
 
 function LegalPage({ type }) {
@@ -338,11 +361,23 @@ function LegalPage({ type }) {
 }
 
 function PlannerPage() {
-  return <main id="planner"><PlannerIntro /><Home /></main>
+  return <main id="planner"><PlannerIntro /><StatusStrip /><Home /></main>
+}
+
+function ProductPreview({ setPath }) {
+  const cards = [
+    ['Cash-flow summary', '₹42k monthly surplus', 'Income, expenses, EMIs, existing investments and surplus in one view.'],
+    ['Tax comparison', 'Old vs new regime', 'Deductions, HRA, NPS and tax paid shown as planning context.'],
+    ['Goal gap analysis', '3 priorities flagged', 'Inflation-adjusted goals and monthly SIP requirements.'],
+    ['Insurance gap', 'Family-aware check', 'Life and health cover reviewed against liabilities and dependents.'],
+    ['Retirement direction', 'Corpus path', 'EPF, NPS, SIPs and assumptions connected to retirement readiness.'],
+    ['Action plan', 'Next 90 days', 'Plain-English priorities without product sales or guaranteed returns.'],
+  ]
+  return <section className="sf-section sf-product-preview"><div className="sf-section-heading"><span>Product preview</span><h2>The planner connects decisions users usually review separately.</h2><p>Cash flow, tax, goals, insurance and investment planning are presented together so trade-offs are visible.</p></div><div className="sf-preview-grid">{cards.map(([title, metric, body]) => <article className="sf-preview-card" key={title}><span>{metric}</span><strong>{title}</strong><p>{body}</p></article>)}</div><a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath, 'product_preview_demo_click')}>Try with demo profile</a></section>
 }
 
 function HomePage({ setPath }) {
-  return <><LandingHero setPath={setPath} /><TrustBar /><ConfidenceStrip /><FeatureGrid /><ComparisonSection /><SecuritySection setPath={setPath} /><AssumptionsSection /><section className="sf-section sf-product-preview"><div className="sf-section-heading"><span>Product preview</span><h2>The planner connects decisions users usually review separately.</h2><p>Cash flow, tax, goals, insurance and investment planning are presented together so trade-offs are visible.</p></div><div className="sf-feature-grid"><article className="sf-feature-card"><strong>Cash-flow summary</strong><p>Income, expenses, EMIs, existing investments and surplus.</p></article><article className="sf-feature-card"><strong>Tax comparison</strong><p>Old/new regime context, deductions and tax already paid.</p></article><article className="sf-feature-card"><strong>Goal gap analysis</strong><p>Inflation-adjusted goals and monthly SIP requirement.</p></article></div><a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Try with demo profile</a></section><FAQSection /></>
+  return <><LandingHero setPath={setPath} /><TrustBar /><StatusStrip /><ConfidenceStrip /><FeatureGrid /><ComparisonSection /><SecuritySection setPath={setPath} /><AssumptionsSection /><ProductPreview setPath={setPath} /><FAQSection /></>
 }
 
 function SiteFooter({ setPath }) {
@@ -351,7 +386,7 @@ function SiteFooter({ setPath }) {
 }
 
 function StickyCTA({ setPath }) {
-  return <div className="sf-sticky-cta"><span>Build your educational plan in minutes.</span><a href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Start free</a></div>
+  return <div className="sf-sticky-cta"><span>Build your educational plan in minutes.</span><a href="/planner" onClick={(event) => navigate(event, '/planner', setPath, 'sticky_cta_click')}>Start free</a></div>
 }
 
 export default function App() {
