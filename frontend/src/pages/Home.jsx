@@ -611,9 +611,10 @@ function ComplianceBanner() {
 
 function Results({ result, inputData, cashflowPreview, taxPreview, insurancePreview, displayGoals }) {
   const { summary, plan, report, error } = result || {}
-  const tax = summary?.tax || taxPreview
-  const insurance = normalizeInsuranceForOutput(plan?.insurance || summary?.insurance || insurancePreview)
-  const outputGoals = buildOutputGoalsFromPlan(plan?.goals, displayGoals)
+  const truthSheet = result?.truthSheet || {}
+  const tax = truthSheet?.tax || summary?.tax || taxPreview
+  const insurance = normalizeInsuranceForOutput(truthSheet?.insurance || plan?.insurance || summary?.insurance || insurancePreview)
+  const outputGoals = buildOutputGoalsFromPlan(truthSheet?.goals || plan?.goals, displayGoals)
 
   const monthlyIncome = summary?.monthlyIncome ?? cashflowPreview.monthlyIncome
   const monthlyExpenses = summary?.monthlyExpenses ?? cashflowPreview.monthlyExpenses
@@ -622,6 +623,15 @@ function Results({ result, inputData, cashflowPreview, taxPreview, insurancePrev
 
   return (
     <div className="results">
+      <div className="card ai-trust-strip">
+        <div>
+          <strong>AI generated with guardrails</strong>
+          <span>Personalized AI output checked against affordability, tax facts, insurance base numbers and compliance rules.</span>
+        </div>
+        <div className="ai-trust-pills">
+          <em>AI-first</em><em>Surplus capped</em><em>Tax fact checked</em><em>Educational only</em>
+        </div>
+      </div>
       <div className="card">
         <div className="result-header">
           <div>

@@ -68,6 +68,248 @@ DEFAULT_RETURNS = {
 }
 
 
+
+def _money_value(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _goal_row_for_truth(goal):
+    return {
+        "name": goal.get("name", "Goal"),
+        "priority": goal.get("priority", "Medium"),
+        "years": goal.get("years", 0),
+        "todayNeed": _money(goal.get("presentCost", goal.get("todayNeed", 0))),
+        "futureNeed": _money(goal.get("futureCost", goal.get("futureNeed", 0))),
+        "existingAllocation": _money(goal.get("existingAllocation", 0)),
+        "gap": _money(goal.get("gap", 0)),
+        "targetMonthlyInvestment": _money(goal.get("targetMonthlyInvestment", 0)),
+        "recommendedMonthlyInvestment": _money(goal.get("recommendedMonthlyInvestment", 0)),
+        "fundingStatus": goal.get("fundingStatus", ""),
+        "notes": goal.get("notes", ""),
+    }
+
+
+def _format_tax_slabs_markdown(title, rows):
+    if not rows:
+        return f"#### {title}\n\nNo slab rows available.\n"
+    lines = [
+        f"#### {title}",
+        "",
+        "| Slab | Rate | Taxable amount | Tax |",
+        "|---|---:|---:|---:|",
+    ]
+    for row in rows:
+        lines.append(
+            f"| {row.get('range', '')} | {row.get('ratePct', 0)}% | {_fmt_money(row.get('taxableAmount'))} | {_fmt_money(row.get('tax'))} |"
+        )
+    return "\n".join(lines)
+
+
+def _build_truth_sheet(body):
+    summary = body.get("summary", {}) or {}
+    plan = body.get("plan", {}) or {}
+    tax = summary.get("tax", {}) or {}
+    insurance = plan.get("insurance", {}) or {}
+
+    goals = [_goal_row_for_truth(g) for g in (plan.get("goals", []) or [])]
+    total_target_sip = sum(_money_value(g.get("targetMonthlyInvestment")) for g in goals)
+    total_recommended_sip = sum(_money_value(g.get("recommendedMonthlyInvestment")) for g in goals)
+    total_future_need = sum(_money_value(g.get("futureNeed")) for g in goals)
+    total_today_need = sum(_money_value(g.get("todayNeed")) for g in goals)
+
+    life_required = _money(insurance.get("requiredLifeCover", insurance.get("recommendedLifeCover", 0)))
+    life_existing = _money(insurance.get("existingLifeCover", insurance.get("currentLifeCover", 0)))
+    health_required = _money(insurance.get("requiredHealthCover", insurance.get("recommendedHealthCover", 0)))
+    health_existing = _money(insurance.get("existingHealthCover", insurance.get("currentHealthCover", 0)))
+
+    return {
+        "fyLabel": tax.get("fyLabel", "FY 2026-27"),
+        "aiGuardrails": {
+            "aiGenerated": True,
+            "guardrailChecked": True,
+            "maxNewMonthlyInvestment": _money(summary.get("remainingSurplusAfterExistingInvestments", 0)),
+            "noGuaranteedReturns": True,
+            "educationalOnly": True,
+        },
+        "cashflow": {
+            "monthlyIncome": _money(summary.get("monthlyIncome", 0)),
+            "monthlyExpenses": _money(summary.get("monthlyExpenses", 0)),
+            "monthlySurplus": _money(summary.get("monthlySurplus", 0)),
+            "currentMonthlyInvestments": _money(summary.get("currentMonthlyInvestments", 0)),
+            "remainingSurplusAfterExistingInvestments": _money(summary.get("remainingSurplusAfterExistingInvestments", 0)),
+        },
+        "goals": goals,
+        "goalTotals": {
+            "todayNeed": _money(total_today_need),
+            "futureNeed": _money(total_future_need),
+            "targetMonthlyInvestment": _money(total_target_sip),
+            "recommendedMonthlyInvestment": _money(total_recommended_sip),
+        },
+        "tax": tax,
+        "insurance": {
+            **insurance,
+            "existingLifeCover": life_existing,
+            "requiredLifeCover": life_required,
+            "lifeCoverGap": _money(max(0, _money_value(life_required) - _money_value(life_existing))),
+            "existingHealthCover": health_existing,
+            "requiredHealthCover": health_required,
+            "healthCoverGap": _money(max(0, _money_value(health_required) - _money_value(health_existing))),
+        },
+    }
+
+
+def _build_visual_markdown_report(profile, body):
+    truth = body.get("truthSheet") or _build_truth_sheet(body)
+    summary = body.get("summary", {}) or {}
+    plan = body.get("plan", {}) or {}
+    tax = truth.get("tax", {}) or {}
+    insurance = truth.get("insurance", {}) or {}
+    goals = truth.get("goals", []) or []
+    cashflow = truth.get("cashflow", {}) or {}
+
+    risk = summary.get("riskProfile", {}) or {}
+    top_priorities = summary.get("topPriorities") or []
+    diagnosis = summary.get("oneLineDiagnosis") or "SmartFinly AI has reviewed your cash-flow, tax, insurance, goals and investments."
+
+    lines = [
+        "# SmartFinly AI Financial Plan",
+        "",
+        "> **AI generated with guardrails:** SmartFinly AI creates the recommendation, while backend guardrails cap affordability, preserve tax math, preserve insurance facts, and prevent guaranteed-return claims.",
+        "",
+        f"**Financial year:** {truth.get('fyLabel', 'FY 2026-27')}",
+        "",
+        "## 1. AI Diagnosis",
+        "",
+        diagnosis,
+        "",
+    ]
+
+    if top_priorities:
+        lines.extend(["### Top priorities", ""])
+        for idx, priority in enumerate(top_priorities[:5], 1):
+            lines.append(f"{idx}. {priority}")
+        lines.append("")
+
+    lines.extend([
+        "## 2. Cash-flow Guardrail",
+        "",
+        "| Item | Amount |",
+        "|---|---:|",
+        f"| Monthly income | {_fmt_money(cashflow.get('monthlyIncome'))} |",
+        f"| Monthly expenses | {_fmt_money(cashflow.get('monthlyExpenses'))} |",
+        f"| Monthly surplus | {_fmt_money(cashflow.get('monthlySurplus'))} |",
+        f"| Current monthly investments | {_fmt_money(cashflow.get('currentMonthlyInvestments'))} |",
+        f"| Maximum new monthly investment allowed | {_fmt_money(cashflow.get('remainingSurplusAfterExistingInvestments'))} |",
+        "",
+        "## 3. Goal Summary",
+        "",
+        "| Goal | Priority | Years | Today need | Future need | Gap | Target SIP | AI recommended SIP | Status |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---|",
+    ])
+
+    if goals:
+        for goal in goals:
+            lines.append(
+                f"| {goal.get('name')} | {goal.get('priority')} | {goal.get('years')} | {_fmt_money(goal.get('todayNeed'))} | {_fmt_money(goal.get('futureNeed'))} | {_fmt_money(goal.get('gap'))} | {_fmt_money(goal.get('targetMonthlyInvestment'))} | {_fmt_money(goal.get('recommendedMonthlyInvestment'))} | {goal.get('fundingStatus', '')} |"
+            )
+    else:
+        lines.append("| No goals returned | — | — | — | — | — | — | — | — |")
+
+    lines.extend([
+        "",
+        "### Goal totals",
+        "",
+        f"- Total today need: **{_fmt_money(truth.get('goalTotals', {}).get('todayNeed'))}**",
+        f"- Total future need: **{_fmt_money(truth.get('goalTotals', {}).get('futureNeed'))}**",
+        f"- Total calculated target SIP: **{_fmt_money(truth.get('goalTotals', {}).get('targetMonthlyInvestment'))}**",
+        f"- Total AI recommended SIP after affordability guardrail: **{_fmt_money(truth.get('goalTotals', {}).get('recommendedMonthlyInvestment'))}**",
+        "",
+        "## 4. Tax Calculation",
+        "",
+        f"- Regime suggested: **{tax.get('preferredRegime', '—')}**",
+        f"- Gross income considered: **{_fmt_money(tax.get('grossIncome'))}**",
+        f"- Old regime deductions: **{_fmt_money(tax.get('oldDeductions'))}**",
+        f"- New regime deductions: **{_fmt_money(tax.get('newDeductions'))}**",
+        f"- Old taxable income: **{_fmt_money(tax.get('oldTaxable'))}**",
+        f"- New taxable income: **{_fmt_money(tax.get('newTaxable'))}**",
+        f"- Old tax after rebate/surcharge/cess: **{_fmt_money(tax.get('oldTax'))}**",
+        f"- New tax after rebate/marginal relief/surcharge/cess: **{_fmt_money(tax.get('newTax'))}**",
+        "",
+        _format_tax_slabs_markdown("Old regime slab-wise calculation", tax.get("oldSlabBreakdown", [])),
+        "",
+        f"- Old regime rebate: **{_fmt_money(tax.get('oldRebate'))}**",
+        f"- Old regime surcharge: **{_fmt_money(tax.get('oldSurcharge'))}**",
+        f"- Old regime cess: **{_fmt_money(tax.get('oldCess'))}**",
+        "",
+        _format_tax_slabs_markdown("New regime slab-wise calculation", tax.get("newSlabBreakdown", [])),
+        "",
+        f"- New regime rebate: **{_fmt_money(tax.get('newRebate'))}**",
+        f"- New regime marginal relief: **{_fmt_money(tax.get('newMarginalRelief'))}**",
+        f"- New regime surcharge: **{_fmt_money(tax.get('newSurcharge'))}**",
+        f"- New regime cess: **{_fmt_money(tax.get('newCess'))}**",
+        "",
+        "## 5. Insurance Calculation",
+        "",
+        "| Cover | Existing | Required | Gap | Formula / assumption |",
+        "|---|---:|---:|---:|---|",
+        f"| Life cover | {_fmt_money(insurance.get('existingLifeCover'))} | {_fmt_money(insurance.get('requiredLifeCover'))} | {_fmt_money(insurance.get('lifeCoverGap'))} | Liabilities + family income replacement + major dependent goals |",
+        f"| Health cover | {_fmt_money(insurance.get('existingHealthCover'))} | {_fmt_money(insurance.get('requiredHealthCover'))} | {_fmt_money(insurance.get('healthCoverGap'))} | Base family floater adjusted for spouse, children, parents and city type |",
+        "",
+        insurance.get("notes", "Insurance numbers are educational estimates and should be validated before purchase."),
+        "",
+        "## 6. Investment Mapping",
+        "",
+        f"- AI risk profile: **{risk.get('label', '—')}**",
+        f"- Suggested allocation: **{risk.get('equity', '—')}% equity / {risk.get('debt', '—')}% debt / {risk.get('gold', '—')}% gold**",
+        f"- Reason: {risk.get('reason', 'Based on age, goal timelines, dependents and cash-flow capacity.')}",
+        "",
+        "## 7. Action Plan",
+        "",
+    ])
+
+    action_plan = plan.get("actionPlan") or []
+    if action_plan:
+        for idx, item in enumerate(action_plan[:8], 1):
+            lines.append(f"{idx}. {item}")
+    else:
+        lines.extend([
+            "1. Keep emergency fund and insurance gaps as first priority.",
+            "2. Invest only up to the affordability-capped surplus.",
+            "3. Review tax regime before payroll declaration.",
+        ])
+
+    lines.extend([
+        "",
+        "## 8. Trust & Compliance Note",
+        "",
+        "- This output is AI-generated and guardrail-checked.",
+        "- It is for educational/sampling use only.",
+        "- It is not SEBI-registered investment advice.",
+        "- It does not guarantee returns.",
+        "- Verify tax, insurance and investment actions with a qualified professional before acting.",
+    ])
+
+    return "\n".join(lines)
+
+
+def _upgrade_ai_output_contract(body):
+    if not isinstance(body, dict):
+        return body
+    body = dict(body)
+    truth = _build_truth_sheet(body)
+    body["truthSheet"] = truth
+    body["report"] = _build_visual_markdown_report({}, body)
+
+    summary = body.setdefault("summary", {})
+    summary["aiGeneratedWithGuardrails"] = True
+    summary["factsSource"] = "truthSheet"
+    summary["trustMessage"] = "AI-generated plan with affordability, tax, insurance and compliance guardrails."
+    return body
+
+
 def respond(status, body):
     return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
 
