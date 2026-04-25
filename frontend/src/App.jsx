@@ -373,10 +373,6 @@ function SiteFooter({ setPath }) {
   return <footer className="sf-footer" id="privacy"><div><strong>Framework-first finance</strong><p>SmartFinly helps young salary earners structure goals, risk, protection, tax context and investment decisions without product selling.</p></div><div><strong>Compliance boundary</strong><p>SmartFinly is an educational framework. It is not SEBI-registered investment advice, research, portfolio management, insurance broking, tax filing, lending or product execution.</p></div><div><strong>Site links</strong><p className="sf-footer-links">{links.map(([href, label]) => <a key={href} href={href} onClick={(event) => navigate(event, href, setPath)}>{label}</a>)}</p></div></footer>
 }
 
-function StickyCTA({ setPath }) {
-  return <div className="sf-sticky-cta"><span>Apply the framework to your salary and goals.</span><a href="/planner" onClick={(event) => navigate(event, '/planner', setPath, 'sticky_cta_click')}>Start</a></div>
-}
-
 export default function App() {
   useProductionPrivacyGuard()
   const [path, setPath] = usePathname()
@@ -391,5 +387,5 @@ export default function App() {
   if (path === '/security') page = <LegalPage type="security" />
   if (seoRoutes[path]) page = <SeoLandingPage page={seoRoutes[path]} setPath={setPath} />
 
-  return <div className="shell"><SiteHeader path={path} setPath={setPath} />{page}<SiteFooter setPath={setPath} /><StickyCTA setPath={setPath} /></div>
+  return <div className="shell"><SiteHeader path={path} setPath={setPath} />{page}<SiteFooter setPath={setPath} /></div>
 }
