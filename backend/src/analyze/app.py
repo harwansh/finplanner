@@ -1112,3 +1112,293 @@ def validate_profile(p):
         raise UserInputError(" ".join(errors))
 # ===== End SmartFinly field mapping / validation hotfix v2 =====
 
+
+# ===== SmartFinly canonical required-field hotfix v3 =====
+# Late override to make backend tolerant of frontend/demo/manual field names.
+
+def _sf_first(*values):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return ""
+
+
+def _sf_deep_find_key(obj, keys):
+    if not isinstance(keys, (list, tuple, set)):
+        keys = [keys]
+    wanted = {str(k).lower() for k in keys}
+    stack = [obj]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            for key, value in current.items():
+                if str(key).lower() in wanted and value not in (None, ""):
+                    return value
+                if isinstance(value, (dict, list)):
+                    stack.append(value)
+        elif isinstance(current, list):
+            for item in current:
+                if isinstance(item, (dict, list)):
+                    stack.append(item)
+    return ""
+
+
+def _sf_to_number_like(value):
+    if isinstance(value, str):
+        return value.replace(",", "").replace("₹", "").strip()
+    return value
+
+
+def align_profile_field_aliases(profile):
+    if not isinstance(profile, dict):
+        return profile
+
+    basics = profile.setdefault("basics", {})
+    income = profile.setdefault("income", {})
+    salary = profile.setdefault("salary", {})
+    expenses = profile.setdefault("expenses", {})
+    tax = profile.setdefault("tax", {})
+
+    basics["age"] = _sf_to_number_like(_sf_first(
+        basics.get("age"),
+        basics.get("currentAge"),
+        basics.get("current_age"),
+        profile.get("age"),
+        profile.get("currentAge"),
+        _sf_deep_find_key(profile, ["currentAge", "age"]),
+    ))
+
+    basics["desiredRetirementAge"] = _sf_to_number_like(_sf_first(
+        basics.get("desiredRetirementAge"),
+        basics.get("retirementAge"),
+        basics.get("desired_retirement_age"),
+        profile.get("desiredRetirementAge"),
+        profile.get("retirementAge"),
+        _sf_deep_find_key(profile, ["desiredRetirementAge", "retirementAge"]),
+    ))
+
+    basics["country"] = _sf_first(basics.get("country"), profile.get("country"), "India")
+    basics["cityTier"] = _sf_first(
+        basics.get("cityTier"),
+        basics.get("cityType"),
+        basics.get("city"),
+        profile.get("cityTier"),
+        profile.get("cityType"),
+        "Metro",
+    )
+    basics["maritalStatus"] = _sf_first(
+        basics.get("maritalStatus"),
+        basics.get("marriedStatus"),
+        profile.get("maritalStatus"),
+        "single",
+    )
+    basics["employmentType"] = str(_sf_first(
+        basics.get("employmentType"),
+        basics.get("employment"),
+        profile.get("employmentType"),
+        profile.get("employment"),
+        "salaried",
+    )).lower()
+
+    basics["parentsDependent"] = _sf_first(
+        basics.get("parentsDependent"),
+        basics.get("parentsFinanciallyDependent"),
+        profile.get("parentsDependent"),
+        False,
+    )
+    basics["dependentParentsCount"] = _sf_to_number_like(_sf_first(
+        basics.get("dependentParentsCount"),
+        basics.get("numberOfDependentParents"),
+        profile.get("dependentParentsCount"),
+        0,
+    ))
+
+    kids = basics.get("kids")
+    if not kids:
+        kids = basics.get("children") or profile.get("children") or profile.get("kids") or []
+    basics["kids"] = kids if isinstance(kids, list) else []
+
+    income["monthlyAfterTax"] = _sf_to_number_like(_sf_first(
+        income.get("monthlyAfterTax"),
+        income.get("monthlyIncomeAfterTax"),
+        income.get("monthlyIncome"),
+        income.get("netMonthlyIncome"),
+        income.get("takeHomeMonthly"),
+        profile.get("monthlyAfterTax"),
+        profile.get("monthlyIncomeAfterTax"),
+        profile.get("monthlyIncome"),
+        profile.get("netMonthlyIncome"),
+        _sf_deep_find_key(profile, ["monthlyAfterTax", "monthlyIncomeAfterTax", "monthlyIncome", "netMonthlyIncome", "takeHomeMonthly"]),
+    ))
+    income["otherMonthly"] = _sf_to_number_like(_sf_first(
+        income.get("otherMonthly"),
+        income.get("otherMonthlyIncome"),
+        income.get("otherIncomeMonthly"),
+        profile.get("otherMonthly"),
+        0,
+    ))
+    income["bonusAnnual"] = _sf_to_number_like(_sf_first(
+        income.get("bonusAnnual"),
+        income.get("annualBonus"),
+        salary.get("bonusVariablePay"),
+        profile.get("bonusAnnual"),
+        0,
+    ))
+
+    expenses["fixed"] = _sf_to_number_like(_sf_first(
+        expenses.get("fixed"),
+        expenses.get("fixedMonthly"),
+        expenses.get("fixedMonthlyExpenses"),
+        expenses.get("monthlyFixed"),
+        profile.get("fixedMonthlyExpenses"),
+        profile.get("fixedExpenses"),
+        0,
+    ))
+    expenses["variable"] = _sf_to_number_like(_sf_first(
+        expenses.get("variable"),
+        expenses.get("variableMonthly"),
+        expenses.get("variableMonthlyExpenses"),
+        expenses.get("monthlyVariable"),
+        profile.get("variableMonthlyExpenses"),
+        profile.get("variableExpenses"),
+        0,
+    ))
+    expenses["annual"] = _sf_to_number_like(_sf_first(
+        expenses.get("annual"),
+        expenses.get("annualLumpSums"),
+        expenses.get("annualExpenses"),
+        profile.get("annualExpenses"),
+        0,
+    ))
+
+    profile["monthlyEmi"] = _sf_to_number_like(_sf_first(
+        profile.get("monthlyEmi"),
+        profile.get("monthlyEMI"),
+        profile.get("totalMonthlyEMI"),
+        profile.get("totalMonthlyEmi"),
+        profile.get("totalMonthlyEmis"),
+        0,
+    ))
+
+    salary["basicSalary"] = _sf_to_number_like(_sf_first(
+        salary.get("basicSalary"),
+        salary.get("basic"),
+        salary.get("annualBasic"),
+        salary.get("basicPay"),
+        profile.get("basicSalary"),
+        0,
+    ))
+    salary["hraReceived"] = _sf_to_number_like(_sf_first(
+        salary.get("hraReceived"),
+        salary.get("hra"),
+        salary.get("annualHra"),
+        salary.get("annualHRA"),
+        profile.get("hraReceived"),
+        0,
+    ))
+    salary["epfContribution"] = _sf_to_number_like(_sf_first(
+        salary.get("epfContribution"),
+        salary.get("employeeEpf"),
+        salary.get("employeeEPF"),
+        salary.get("ePfContribution"),
+        salary.get("epf"),
+        profile.get("epfContribution"),
+        0,
+    ))
+    salary["npsEmployer"] = _sf_to_number_like(_sf_first(
+        salary.get("npsEmployer"),
+        salary.get("employerNps"),
+        salary.get("employerNPS"),
+        profile.get("npsEmployer"),
+        0,
+    ))
+    salary["grossEarning"] = _sf_to_number_like(_sf_first(
+        salary.get("grossEarning"),
+        salary.get("grossSalary"),
+        salary.get("annualGross"),
+        salary.get("annualGrossSalary"),
+        profile.get("grossEarning"),
+        profile.get("grossSalary"),
+        0,
+    ))
+    salary["rentPaid"] = _sf_to_number_like(_sf_first(
+        salary.get("rentPaid"),
+        salary.get("annualRentPaid"),
+        tax.get("rentPaid"),
+        profile.get("rentPaid"),
+        0,
+    ))
+    salary["profTax"] = _sf_to_number_like(_sf_first(salary.get("profTax"), salary.get("professionalTax"), tax.get("professionalTax"), 0))
+    salary["incomeTax"] = _sf_to_number_like(_sf_first(salary.get("incomeTax"), salary.get("tds"), tax.get("taxPaid"), 0))
+
+    return profile
+
+
+def _missing_core_fields(profile):
+    profile = align_profile_field_aliases(profile)
+    basics = profile.get("basics", {}) or {}
+    income = profile.get("income", {}) or {}
+
+    missing = []
+    if _num(basics.get("age")) <= 0:
+        missing.append("Current age")
+    if _num(basics.get("desiredRetirementAge")) <= _num(basics.get("age")):
+        missing.append("Desired retirement age greater than current age")
+    if _num(income.get("monthlyAfterTax")) <= 0:
+        missing.append("Monthly after-tax income")
+    return missing
+
+
+def _has_any_salary_detail(profile):
+    profile = align_profile_field_aliases(profile)
+    salary = profile.get("salary", {}) or {}
+    keys = [
+        "basicSalary", "hraReceived", "epfContribution", "grossEarning",
+        "monthlyBasic", "monthlyHra", "monthlyEmployeeEpf", "annualGross",
+        "bonusVariablePay", "npsEmployer"
+    ]
+    return any(_num(salary.get(key)) > 0 for key in keys)
+
+
+def _missing_salaried_tax_fields(profile):
+    profile = align_profile_field_aliases(profile)
+    basics = profile.get("basics", {}) or {}
+    salary = profile.get("salary", {}) or {}
+
+    if basics.get("employmentType") != "salaried":
+        return []
+    if not _has_any_salary_detail(profile):
+        return []
+
+    missing = []
+    if _num(salary.get("basicSalary")) <= 0 and _num(salary.get("monthlyBasic")) <= 0:
+        missing.append("Basic Salary")
+    if _num(salary.get("hraReceived")) <= 0 and _num(salary.get("monthlyHra")) <= 0:
+        missing.append("HRA received")
+    if _num(salary.get("epfContribution")) <= 0 and _num(salary.get("monthlyEmployeeEpf")) <= 0:
+        missing.append("E-PF Contribution")
+    return missing
+
+
+def validate_profile(p):
+    p = align_profile_field_aliases(p)
+    errors = []
+
+    missing = _missing_core_fields(p)
+    if missing:
+        errors.append("Missing required fields: " + ", ".join(missing) + ".")
+
+    salary_missing = _missing_salaried_tax_fields(p)
+    if salary_missing:
+        errors.append("For salaried tax calculation, please enter: " + ", ".join(salary_missing) + ".")
+
+    if errors:
+        debug = {
+            "basics": p.get("basics", {}),
+            "income": p.get("income", {}),
+            "receivedTopLevelKeys": sorted(list(p.keys())),
+        }
+        print("Validation failed after alias normalization:", json.dumps(debug, default=str)[:1200])
+        raise UserInputError(" ".join(errors))
+# ===== End SmartFinly canonical required-field hotfix v3 =====
+

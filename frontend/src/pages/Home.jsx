@@ -529,7 +529,7 @@ export default function Home() {
     setErr('')
     setResult(null)
     try {
-      const cleaned = cleanProfile(data)
+      const cleaned = canonicalizeSubmitPayload(cleanProfile(data))
       const payloadShapeError = hasInvalidPayloadShape(cleaned)
       if (payloadShapeError) {
         setErr(payloadShapeError)
@@ -541,6 +541,7 @@ export default function Home() {
         setBusy(false)
         return
       }
+      if (import.meta.env.DEV) console.log('SmartFinly submit payload', cleaned)
       const r = await analyze(cleaned)
       setResult(r)
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
@@ -1389,6 +1390,65 @@ function hasInvalidPayloadShape(profile) {
 
 
 
+
+
+function toBackendNumber(value) {
+  if (value === '' || value == null) return ''
+  if (typeof value === 'number') return value
+  const cleaned = String(value).replace(/,/g, '').replace(/₹/g, '').trim()
+  if (cleaned === '') return ''
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : value
+}
+
+function canonicalizeSubmitPayload(profile) {
+  const p = JSON.parse(JSON.stringify(profile || {}))
+  p.basics = p.basics || {}
+  p.income = p.income || {}
+  p.salary = p.salary || {}
+  p.expenses = p.expenses || {}
+
+  p.basics.age = toBackendNumber(p.basics.age ?? p.basics.currentAge ?? p.currentAge ?? p.age)
+  p.basics.currentAge = p.basics.age
+  p.basics.desiredRetirementAge = toBackendNumber(
+    p.basics.desiredRetirementAge ?? p.basics.retirementAge ?? p.retirementAge ?? p.desiredRetirementAge
+  )
+  p.basics.retirementAge = p.basics.desiredRetirementAge
+  p.basics.cityTier = p.basics.cityTier || p.basics.cityType || p.cityTier || 'Metro'
+  p.basics.cityType = p.basics.cityTier
+  p.basics.employmentType = p.basics.employmentType || p.basics.employment || p.employmentType || 'salaried'
+  p.basics.employment = p.basics.employmentType
+  p.basics.kids = Array.isArray(p.basics.kids) ? p.basics.kids : (Array.isArray(p.basics.children) ? p.basics.children : [])
+
+  p.income.monthlyAfterTax = toBackendNumber(
+    p.income.monthlyAfterTax ?? p.income.monthlyIncomeAfterTax ?? p.income.monthlyIncome ?? p.income.netMonthlyIncome
+  )
+  p.income.monthlyIncomeAfterTax = p.income.monthlyAfterTax
+  p.income.monthlyIncome = p.income.monthlyAfterTax
+  p.income.netMonthlyIncome = p.income.monthlyAfterTax
+  p.income.otherMonthly = toBackendNumber(p.income.otherMonthly ?? p.income.otherMonthlyIncome ?? 0)
+  p.income.bonusAnnual = toBackendNumber(p.income.bonusAnnual ?? p.income.annualBonus ?? 0)
+
+  p.expenses.fixed = toBackendNumber(p.expenses.fixed ?? p.expenses.fixedMonthlyExpenses ?? 0)
+  p.expenses.variable = toBackendNumber(p.expenses.variable ?? p.expenses.variableMonthlyExpenses ?? 0)
+  p.expenses.annual = toBackendNumber(p.expenses.annual ?? p.expenses.annualExpenses ?? 0)
+  p.monthlyEmi = toBackendNumber(p.monthlyEmi ?? p.totalMonthlyEMI ?? 0)
+
+  p.salary.basicSalary = toBackendNumber(p.salary.basicSalary ?? p.salary.basic ?? p.salary.annualBasic ?? 0)
+  p.salary.basic = p.salary.basicSalary
+  p.salary.hraReceived = toBackendNumber(p.salary.hraReceived ?? p.salary.hra ?? p.salary.annualHra ?? 0)
+  p.salary.hra = p.salary.hraReceived
+  p.salary.epfContribution = toBackendNumber(p.salary.epfContribution ?? p.salary.employeeEpf ?? p.salary.employeeEPF ?? 0)
+  p.salary.employeeEpf = p.salary.epfContribution
+  p.salary.npsEmployer = toBackendNumber(p.salary.npsEmployer ?? p.salary.employerNps ?? p.salary.employerNPS ?? 0)
+  p.salary.employerNps = p.salary.npsEmployer
+  p.salary.grossEarning = toBackendNumber(p.salary.grossEarning ?? p.salary.grossSalary ?? p.salary.annualGross ?? 0)
+  p.salary.grossSalary = p.salary.grossEarning
+  p.salary.rentPaid = toBackendNumber(p.salary.rentPaid ?? p.salary.annualRentPaid ?? 0)
+  p.salary.annualRentPaid = p.salary.rentPaid
+
+  return p
+}
 
 function getTabForValidationError(message = '') {
   const text = String(message).toLowerCase()
