@@ -1,4 +1,5 @@
 """POST /analyze - takes profile JSON, returns net worth + markdown plan via Bedrock Converse API."""
+import copy
 import json
 import os
 
@@ -30,6 +31,58 @@ def _num(x):
         return 0.0
 
 
+def _int(x):
+    return int(max(0, round(_num(x))))
+
+
+def _money(x):
+    return round(_num(x), 2)
+
+
+def normalize_profile(profile):
+    """Normalize transient UI state before computing or prompting the model.
+
+    This prevents stale child rows, hidden child values for non-married users, and
+    inconsistent parent dependency state from leaking into the generated plan.
+    """
+    cleaned = copy.deepcopy(profile)
+    basics = cleaned.setdefault("basics", {})
+
+    kids = basics.get("kids") or []
+    if not isinstance(kids, list):
+        kids = []
+
+    normalized_kids = []
+    for i, kid in enumerate(kids):
+        if not isinstance(kid, dict):
+            continue
+        name = str(kid.get("name") or "").strip()
+        age_raw = kid.get("age")
+        has_name = bool(name)
+        has_age = age_raw not in ("", None)
+        if not has_name and not has_age:
+            continue
+
+        normalized_kids.append(
+            {
+                "name": name or f"Child {i + 1}",
+                "age": _int(age_raw),
+            }
+        )
+
+    if basics.get("maritalStatus") != "married":
+        normalized_kids = []
+
+    basics["kids"] = normalized_kids
+
+    parents_dependent = bool(basics.get("parentsDependent"))
+    basics["parentsDependent"] = parents_dependent
+    basics["dependentParentsCount"] = _int(basics.get("dependentParentsCount")) if parents_dependent else 0
+
+    cleaned["basics"] = basics
+    return cleaned
+
+
 def compute_networth(profile):
     assets = profile.get("assets", {}) or {}
     liabilities = profile.get("liabilities", {}) or {}
@@ -40,28 +93,69 @@ def compute_networth(profile):
     total_liabilities = sum(_num(v) for v in liabilities.values())
     net_worth = total_assets - total_liabilities
 
-    monthly_income = _num(income.get("monthlyAfterTax")) + _num(income.get("otherMonthly"))
+    recurring_income = _num(income.get("monthlyAfterTax")) + _num(income.get("otherMonthly"))
+    prorated_bonus = _num(income.get("bonusAnnual")) / 12.0
+    monthly_income = recurring_income + prorated_bonus
+
     monthly_emi = _num(profile.get("monthlyEmi"))
-    monthly_expenses = (
-        _num(expenses.get("fixed"))
-        + _num(expenses.get("variable"))
-        + _num(expenses.get("annual")) / 12.0
-        + monthly_emi
-    )
+    fixed_expenses = _num(expenses.get("fixed"))
+    variable_expenses = _num(expenses.get("variable"))
+    annual_expenses_monthly = _num(expenses.get("annual")) / 12.0
+    monthly_expenses = fixed_expenses + variable_expenses + annual_expenses_monthly + monthly_emi
+
     monthly_surplus = monthly_income - monthly_expenses
     savings_rate = (monthly_surplus / monthly_income * 100.0) if monthly_income > 0 else 0.0
-    emergency_have = _num(profile.get("emergencyFund")) or _num(assets.get("savings")) or _num(assets.get("bankSavings"))
+
+    emergency_have = (
+        _num(profile.get("emergencyFund"))
+        or _num(assets.get("savings"))
+        or _num(assets.get("bankSavings"))
+    )
     emergency_months = (emergency_have / monthly_expenses) if monthly_expenses > 0 else 0.0
+
+    essential_monthly_expenses = fixed_expenses + monthly_emi + annual_expenses_monthly
+    emergency_target_6m = monthly_expenses * 6.0
+    emergency_target_12m = monthly_expenses * 12.0
+
+    warnings = []
+    basics = profile.get("basics", {}) or {}
+
+    if monthly_income > 0 and monthly_surplus < 0:
+        warnings.append(
+            "Monthly expenses exceed average monthly income. Treat this as a feasibility blocker before starting new SIPs."
+        )
+    if monthly_expenses > 0 and emergency_months < 3:
+        warnings.append("Emergency fund is below 3 months of expenses.")
+    if basics.get("parentsDependent") and _int(basics.get("dependentParentsCount")) < 1:
+        warnings.append("Parents are marked financially dependent, but dependent parents count is 0.")
+    if _num(expenses.get("annual")) > 0 and annual_expenses_monthly > recurring_income * 0.5:
+        warnings.append("Annual lump-sum expenses are unusually high relative to recurring monthly income.")
+    if monthly_income > 0 and monthly_expenses / monthly_income > 0.8:
+        warnings.append("Expense ratio is above 80% of income; long-term goals will need trade-offs.")
 
     return {
         "totalAssets": round(total_assets, 2),
         "totalLiabilities": round(total_liabilities, 2),
         "netWorth": round(net_worth, 2),
         "monthlyIncome": round(monthly_income, 2),
+        "monthlyRecurringIncome": round(recurring_income, 2),
+        "monthlyBonusProrated": round(prorated_bonus, 2),
         "monthlyExpenses": round(monthly_expenses, 2),
+        "monthlyExpenseBreakdown": {
+            "fixed": round(fixed_expenses, 2),
+            "variable": round(variable_expenses, 2),
+            "annualProrated": round(annual_expenses_monthly, 2),
+            "emi": round(monthly_emi, 2),
+        },
+        "essentialMonthlyExpenses": round(essential_monthly_expenses, 2),
         "monthlySurplus": round(monthly_surplus, 2),
         "savingsRatePct": round(savings_rate, 1),
         "emergencyFundMonths": round(emergency_months, 1),
+        "emergencyFundCurrent": round(emergency_have, 2),
+        "emergencyFundTarget6Months": round(emergency_target_6m, 2),
+        "emergencyFundTarget12Months": round(emergency_target_12m, 2),
+        "feasibilityStatus": "blocked" if monthly_surplus <= 0 else "feasible",
+        "warnings": warnings,
     }
 
 
@@ -70,6 +164,14 @@ SYSTEM_PROMPT = """You are an expert financial planning AI assistant for Indian 
 Use real-world financial planning logic, inflation-adjusted values, expected return assumptions, risk profiling, and goal-based investing calculations.
 
 Do not give generic advice. Every goal amount, monthly investment, future value, and timeline must be calculated based on the user's inputs.
+
+## Hard rules for data integrity
+- Use only the children present in `profile.basics.kids`; do not invent or retain previously removed children.
+- If `profile.basics.parentsDependent` is false, do not include parent-support goals.
+- If parents are dependent but `dependentParentsCount` is 0, call this out as a data issue instead of assuming parent expenses.
+- Separate user-entered goals from suggested goals. Label auto-added goals as "Suggested" and make them removable/deferrable in the advice.
+- Do not create duplicate emergency-fund goals. Use one emergency fund only.
+- If `summary.feasibilityStatus` is "blocked" or monthly surplus is negative/zero, start with a feasibility warning and do not recommend starting new long-term SIPs until cash flow is fixed. In that case, show SIPs as target amounts only and prioritize expense reduction, emergency fund, insurance, and debt actions.
 
 ## Default Assumptions (India)
 - General inflation: 6% per year
@@ -92,18 +194,22 @@ State assumptions used.
 
 Output a single Markdown document with these sections in this exact order:
 
-### 1. User Financial Snapshot
+### 1. Feasibility Check
+Show average monthly income, monthly expense breakdown, monthly surplus, savings rate, emergency fund months, and whether the plan is feasible. If surplus is negative/zero, state the exact monthly gap to fix before new SIPs.
+
+### 2. User Financial Snapshot
 A concise bulleted summary: age, retirement age, monthly income, monthly expenses, dependents, children's ages, parent dependency, total assets, total liabilities, insurance status, risk profile.
 
-### 2. Key Assumptions Used
+### 3. Key Assumptions Used
 List inflation and return assumptions actually used.
 
-### 3. Financial Goal Summary Table
+### 4. Financial Goal Summary Table
 A markdown table:
 
-| No. | Goal | Timeline | Present Cost | Future Cost | Existing Allocation | Gap | Monthly Investment | Priority |
+| No. | Goal | Type | Timeline | Present Cost | Future Cost | Existing Allocation | Gap | Monthly Investment | Priority |
 
-Pick the 15 most relevant goals from this list (only include those that apply to the user):
+Use Type = "User-entered", "Required", or "Suggested".
+Pick the most relevant goals from this list, but only include those that apply to the user:
 1. Emergency fund
 2. Health insurance planning
 3. Life insurance planning
@@ -125,8 +231,8 @@ Pick the 15 most relevant goals from this list (only include those that apply to
 19. Business/startup fund (if applicable)
 20. Legacy/estate planning
 
-### 4. Detailed Goal-Wise Plan
-For each of the 15 selected goals provide:
+### 5. Detailed Goal-Wise Plan
+For each selected goal provide:
 - Goal explanation (1-2 sentences)
 - Calculation logic (show the formula used)
 - Future value (compute it)
@@ -136,29 +242,29 @@ For each of the 15 selected goals provide:
 - Priority (Critical / High / Medium / Low)
 - Step-by-step action plan (3-5 bullet points)
 
-### 5. Retirement Planning
-Compute and show monthly expense at retirement (after inflation), annual expenses at retirement, retirement corpus required, existing retirement savings, retirement gap, monthly SIP required, corpus sustainability until age 85-90.
+### 6. Retirement Planning
+Compute and show current monthly expenses, monthly expense at retirement after inflation, annual expenses at retirement, retirement corpus required, existing retirement savings projected forward, retirement gap, monthly SIP required, corpus sustainability until age 85-90.
 
-### 6. Child Planning
-If user has children, compute for each child: education cost, higher education cost, marriage cost (if applicable), timeline based on child's current age, monthly investment required.
+### 7. Child Planning
+If user has children, compute for each child in `profile.basics.kids`: education cost, higher education cost, marriage cost (if applicable), timeline based on child's current age, monthly investment required.
 
-### 7. Parents Dependency
-If parents are dependent: monthly support requirement, medical emergency corpus, health insurance need, annual support cost after inflation.
+### 8. Parents Dependency
+If parents are dependent and parent count is valid: monthly support requirement, medical emergency corpus, health insurance need, annual support cost after inflation. Otherwise state no parent-dependent planning was included.
 
-### 8. Home Planning
+### 9. Home Planning
 If user does NOT own a home: estimate future home cost, down payment, loan, EMI affordability, monthly investment for down payment.
 If user owns: home loan status, prepayment strategy if useful.
 
-### 9. Insurance Gap Analysis
-Required life cover (15-20× annual expenses + liabilities + future goals - existing liquid assets), existing life cover, insurance gap, health insurance recommendation, critical illness cover recommendation.
+### 10. Insurance Gap Analysis
+Required life cover = 15-20× annual expenses + liabilities + high-priority future goals - liquid assets. Show existing life cover, insurance gap, health insurance recommendation, and critical illness cover recommendation. Do not say coverage is adequate without this calculation.
 
-### 10. Monthly Investment Feasibility
-Total required monthly investment, user's monthly surplus, are goals achievable? Which to delay/reduce?
+### 11. Monthly Investment Feasibility
+Total target monthly investment, user's monthly surplus, are goals achievable, and which goals to delay/reduce. If surplus is negative/zero, show "Not currently feasible" and give a cash-flow repair target.
 
-### 11. Priority-Based Action Plan
+### 12. Priority-Based Action Plan
 Group actions by horizon: Immediate (0-3 months), Short term (3 months - 2 years), Medium term (2-7 years), Long term (7+ years).
 
-### 12. Final Recommendations
+### 13. Final Recommendations
 Practical recommendations on emergency fund, insurance, debt, allocation, retirement, child goals, parent support, tax planning, annual review.
 
 ## Formulas to use
@@ -209,6 +315,7 @@ def handler(event, context):
     if not isinstance(profile, dict):
         return respond(400, {"error": "profile object required in request body"})
 
+    profile = normalize_profile(profile)
     summary = compute_networth(profile)
     try:
         report = call_bedrock_converse(profile, summary)
