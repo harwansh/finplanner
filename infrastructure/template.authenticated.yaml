@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SmartFinly - authenticated AI financial planner API
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Default: amazon.nova-pro-v1:0
+    Description: Bedrock model ID.
+  BedrockRegion:
+    Type: String
+    Default: us-east-1
+  AllowedOrigin:
+    Type: String
+    Default: https://www.smartfinly.com
+
+Resources:
+  SmartFinlyUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: smartfinly-users
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 10
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  SmartFinlyUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: smartfinly-web
+      UserPoolId: !Ref SmartFinlyUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+
+  SmartFinlyApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+          - https://smartfinly.com
+          - http://localhost:5173
+          - http://localhost:5174
+        AllowMethods:
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            JwtConfiguration:
+              issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${SmartFinlyUserPool}
+              audience:
+                - !Ref SmartFinlyUserPoolClient
+            IdentitySource: "$request.header.Authorization"
+        DefaultAuthorizer: CognitoAuthorizer
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 5
+        ThrottlingRateLimit: 1
+
+  AnalyzeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/src/analyze/
+      Handler: app.handler
+      Runtime: python3.12
+      Architectures:
+        - arm64
+      Timeout: 120
+      MemorySize: 1024
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_REGION: !Ref BedrockRegion
+          MAX_BODY_BYTES: "131072"
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+      Events:
+        AnalyzeApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref SmartFinlyApi
+            Path: /analyze
+            Method: POST
+
+Outputs:
+  ApiUrl:
+    Value: !Sub https://${SmartFinlyApi}.execute-api.${AWS::Region}.amazonaws.com/analyze
+  UserPoolId:
+    Value: !Ref SmartFinlyUserPool
+  UserPoolClientId:
+    Value: !Ref SmartFinlyUserPoolClient
+  Region:
+    Value: !Ref AWS::Region
