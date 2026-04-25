@@ -1,0 +1,10 @@
+{
+  "name": "SmartFinly",
+  "short_name": "SmartFinly",
+  "description": "AI financial planner for salaried India.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffaf0",
+  "theme_color": "#0b0b08",
+  "lang": "en-IN"
+}
