@@ -33,9 +33,18 @@ Resources:
       FunctionUrlConfig:
         AuthType: NONE
         Cors:
-          AllowOrigins: ["*"]
-          AllowMethods: ["POST"]
-          AllowHeaders: ["Content-Type"]
+          AllowOrigins:
+            - https://www.smartfinly.com
+            - https://smartfinly.com
+            - http://localhost:5173
+            - http://localhost:5174
+          AllowMethods:
+            - POST
+          AllowHeaders:
+            - Content-Type
+          ExposeHeaders:
+            - Content-Type
+          MaxAge: 600
 
 Outputs:
   ApiUrl:
