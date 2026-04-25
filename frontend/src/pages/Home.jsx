@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { analyze } from '../api/client'
@@ -30,27 +30,15 @@ const empty = {
     creditCard: '', vehicleLoan: '', otherDebt: ''
   },
   insurance: { life: '', health: '', criticalIllness: '' },
-  risk: 'moderate',
-  investmentPreferences: [],
-  currentInvestments: {
-    equitySip: '', debtSip: '', epfPpfNps: '', nps: '', ppf: '',
-    retirementSip: '', childEducationSip: '', fdRd: '', gold: '', otherMonthlyInvestments: ''
-  },
-  oneTimeFutureExpenses: '',
-  existingGoals: '',
+  investments: [],
 }
-
-const investmentOptions = [
-  'Mutual funds', 'Stocks', 'FD/RD', 'PPF/EPF/NPS',
-  'Real estate', 'Gold', 'Not sure'
-]
 
 const assetLabels = {
   bankSavings: 'Bank savings',
   fixedDeposits: 'Fixed deposits',
-  mutualFunds: 'Mutual funds',
-  stocks: 'Stocks',
-  epfPpfNps: 'EPF / PPF / NPS',
+  mutualFunds: 'Mutual funds current value',
+  stocks: 'Stocks current value',
+  epfPpfNps: 'EPF / PPF / NPS current corpus',
   gold: 'Gold',
   realEstate: 'Real estate',
   otherAssets: 'Other assets',
@@ -65,18 +53,39 @@ const liabilityLabels = {
   otherDebt: 'Other debt',
 }
 
-const currentInvestmentLabels = {
-  equitySip: 'Equity mutual fund SIP',
-  debtSip: 'Debt / hybrid SIP',
-  epfPpfNps: 'EPF / PPF / NPS contribution',
-  nps: 'Additional NPS',
-  ppf: 'PPF contribution',
-  retirementSip: 'Retirement-focused SIP',
-  childEducationSip: 'Child education SIP',
-  fdRd: 'FD / RD monthly investment',
-  gold: 'Gold monthly investment',
-  otherMonthlyInvestments: 'Other monthly investments',
-}
+const investmentCategories = [
+  ['equityLargeCap', 'MF - Large cap', 11],
+  ['equityMidCap', 'MF - Mid cap', 12],
+  ['equitySmallCap', 'MF - Small cap', 13],
+  ['equityFlexiCap', 'MF - Flexi / multi cap', 11],
+  ['equityIndex', 'MF - Index fund', 11],
+  ['elss', 'MF - ELSS / tax saver', 11],
+  ['smallcase', 'Smallcase / stock basket', 12],
+  ['debtFund', 'Debt mutual fund', 7],
+  ['liquidFund', 'Liquid fund', 5.5],
+  ['hybridFund', 'Hybrid / balanced fund', 9],
+  ['fdRd', 'FD / RD', 6.5],
+  ['epf', 'EPF', 8],
+  ['ppf', 'PPF', 7.1],
+  ['nps', 'NPS', 10],
+  ['retirementSip', 'Retirement SIP', 10],
+  ['childEducation', 'Child education SIP', 10],
+  ['gold', 'Gold / SGB', 7],
+  ['realEstate', 'Real estate investment', 6],
+  ['other', 'Other investment', 8],
+]
+
+const investmentGoals = [
+  ['retirement', 'Retirement'],
+  ['emergency', 'Emergency'],
+  ['childEducation', 'Child education'],
+  ['home', 'Home'],
+  ['wealth', 'Wealth creation'],
+  ['taxSaving', 'Tax saving'],
+  ['other', 'Other'],
+]
+
+const categoryReturnMap = Object.fromEntries(investmentCategories.map(([key,, ret]) => [key, ret]))
 
 export default function Home() {
   const [data, setData] = useState(empty)
@@ -89,15 +98,7 @@ export default function Home() {
     setData(d => ({ ...d, [section]: { ...d[section], [field]: val } }))
   const setTop = (field, val) => setData(d => ({ ...d, [field]: val }))
   const num = v => v === '' || v == null ? '' : Number(v)
-  const preview = getCashflowPreview(data)
-
-  const togglePref = (option) => {
-    setData(d => {
-      const cur = d.investmentPreferences
-      const next = cur.includes(option) ? cur.filter(x => x !== option) : [...cur, option]
-      return { ...d, investmentPreferences: next }
-    })
-  }
+  const preview = useMemo(() => getCashflowPreview(data), [data])
 
   const submit = async (e) => {
     e.preventDefault()
@@ -295,8 +296,9 @@ export default function Home() {
         </Section>
 
         <Section title="6. Insurance">
+          <div className="section-note">Enter current cover. Backend calculates CFP-style required cover based on dependents, liabilities, expenses and goals.</div>
           <Row>
-            <Field label="Life cover" hint="Sum assured in ₹">
+            <Field label="Life cover" hint="Term insurance sum assured">
               <MoneyInput value={data.insurance.life}
                 onChange={v=>set('insurance','life',v)} />
             </Field>
@@ -311,59 +313,16 @@ export default function Home() {
           </Row>
         </Section>
 
-        <Section title="7. Current monthly investments">
-          <div className="section-note">Enter SIPs/contributions already running every month. These are projected toward goals and reduce the new recommendation amount.</div>
-          <Row>
-            {Object.keys(empty.currentInvestments).map(k => (
-              <Field key={k} label={currentInvestmentLabels[k] || prettify(k)}>
-                <MoneyInput value={data.currentInvestments[k]}
-                  onChange={v=>set('currentInvestments',k,v)} />
-              </Field>
-            ))}
-          </Row>
-        </Section>
-
-        <Section title="8. Risk & investment preferences">
-          <div className="muted small" style={{marginBottom:6}}>Risk appetite</div>
-          <div className="radio-row">
-            {['conservative','moderate','aggressive'].map(r => (
-              <label key={r} className={`radio chip ${data.risk === r ? 'selected' : ''}`}>
-                <input type="radio" checked={data.risk===r}
-                  onChange={()=>setData(d=>({...d, risk:r}))} /> {r}
-              </label>
-            ))}
-          </div>
-
-          <div className="muted small" style={{marginTop:14, marginBottom:6}}>
-            Investment preferences (pick any)
-          </div>
-          <div className="checkbox-row">
-            {investmentOptions.map(opt => (
-              <label key={opt} className={`radio chip ${data.investmentPreferences.includes(opt) ? 'selected' : ''}`}>
-                <input type="checkbox"
-                  checked={data.investmentPreferences.includes(opt)}
-                  onChange={()=>togglePref(opt)} /> {opt}
-              </label>
-            ))}
-          </div>
-        </Section>
-
-        <Section title="9. Future plans">
-          <Field label="Expected one-time future expenses" hint="Example: kid's MBA in 2038, car in 5 years, wedding in 2029">
-            <textarea value={data.oneTimeFutureExpenses}
-              onChange={e=>setTop('oneTimeFutureExpenses', e.target.value)} />
-          </Field>
-          <Field label="Existing financial goals" hint="Only goals entered here will be treated as user-entered goals">
-            <textarea value={data.existingGoals}
-              onChange={e=>setTop('existingGoals', e.target.value)} />
-          </Field>
+        <Section title="7. Existing investments and SIPs">
+          <div className="section-note">Add every running SIP/investment. Return % is auto-filled by category but you can change it.</div>
+          <InvestmentEditor investments={data.investments} onChange={v=>setTop('investments', v)} />
         </Section>
 
         {err && <div className="err error-block">{err}</div>}
 
         <div className="actions">
           <button type="submit" disabled={busy} className="primary">
-            {busy ? 'Calculating…' : '🔮  Generate my financial plan'}
+            {busy ? 'Calculating…' : '🔮  Generate CFP-style financial plan'}
           </button>
           <span className="muted small">Nothing is saved. Refresh to start over.</span>
         </div>
@@ -391,7 +350,7 @@ function Results({ result }) {
           <h2>📊 Your numbers</h2>
           {summary.monthlySurplus <= 0 && (
             <div className="err" style={{marginBottom: 12}}>
-              Your plan is not currently feasible. Monthly expenses exceed average monthly income by {fmt(Math.abs(summary.monthlySurplus))}. Fix cash flow before starting new long-term SIPs.
+              Your plan is not currently feasible. Monthly expenses exceed or consume income. Fix cash flow before starting new long-term SIPs.
             </div>
           )}
           {summary.warnings?.length > 0 && (
@@ -401,27 +360,18 @@ function Results({ result }) {
           )}
           <div className="kpi-grid">
             <Kpi label="Net worth" value={fmt(summary.netWorth)} big />
-            <Kpi label="Total assets" value={fmt(summary.totalAssets)} />
-            <Kpi label="Total liabilities" value={fmt(summary.totalLiabilities)} />
-            <Kpi label="Average monthly income" value={fmt(summary.monthlyIncome)} />
+            <Kpi label="Monthly income" value={fmt(summary.monthlyIncome)} />
             <Kpi label="Monthly expenses" value={fmt(summary.monthlyExpenses)} />
             <Kpi label="Monthly surplus" value={fmt(summary.monthlySurplus)} />
-            <Kpi label="Savings rate" value={`${summary.savingsRatePct}%`} />
-            <Kpi label="Emergency fund" value={`${summary.emergencyFundMonths} mo`} />
-            <Kpi label="Existing monthly investments" value={fmt(summary.currentMonthlyInvestments)} />
+            <Kpi label="Existing SIPs/investments" value={fmt(summary.currentMonthlyInvestments)} />
             <Kpi label="Remaining surplus" value={fmt(summary.remainingSurplusAfterExistingInvestments)} />
+            <Kpi label="Auto risk profile" value={summary.riskProfile?.label || '—'} />
+            <Kpi label="Emergency fund" value={`${summary.emergencyFundMonths} mo`} />
           </div>
-          {summary.monthlyExpenseBreakdown && (
-            <div className="muted small" style={{marginTop: 12}}>
-              Expense breakdown: fixed {fmt(summary.monthlyExpenseBreakdown.fixed)}
-              {' '}+ variable {fmt(summary.monthlyExpenseBreakdown.variable)}
-              {' '}+ annual prorated {fmt(summary.monthlyExpenseBreakdown.annualProrated)}
-              {' '}+ EMI {fmt(summary.monthlyExpenseBreakdown.emi)}
-            </div>
-          )}
-          {summary.monthlyBonusProrated > 0 && (
-            <div className="muted small" style={{marginTop: 6}}>
-              Average monthly income includes prorated annual bonus of {fmt(summary.monthlyBonusProrated)}.
+          {summary.riskProfile && (
+            <div className="cashflow-preview success" style={{marginTop: 14}}>
+              <div className="cashflow-title">Auto-calculated risk profile</div>
+              {summary.riskProfile.label}: {summary.riskProfile.equity}% equity / {summary.riskProfile.debt}% debt / {summary.riskProfile.gold}% gold. {summary.riskProfile.reason}
             </div>
           )}
         </div>
@@ -469,6 +419,73 @@ function KidsEditor({ kids, onChange }) {
         </Row>
       ))}
       <button type="button" onClick={add} className="link add-btn">+ Add child</button>
+    </div>
+  )
+}
+
+function InvestmentEditor({ investments, onChange }) {
+  const add = () => {
+    onChange([...investments, {
+      name: '',
+      category: 'equityFlexiCap',
+      currentValue: '',
+      monthlyAmount: '',
+      expectedReturnPct: categoryReturnMap.equityFlexiCap,
+      goal: 'wealth',
+    }])
+  }
+
+  const update = (i, patch) => {
+    const copy = investments.slice()
+    const next = { ...copy[i], ...patch }
+    if (patch.category) {
+      next.expectedReturnPct = categoryReturnMap[patch.category] ?? next.expectedReturnPct
+      if (['epf','ppf','nps','retirementSip'].includes(patch.category)) next.goal = 'retirement'
+      if (patch.category === 'childEducation') next.goal = 'childEducation'
+    }
+    copy[i] = next
+    onChange(copy)
+  }
+
+  const remove = (i) => onChange(investments.filter((_, idx) => idx !== i))
+
+  return (
+    <div className="kids">
+      {investments.length === 0 && <div className="muted small" style={{marginBottom: 12}}>No SIPs added yet.</div>}
+      {investments.map((inv, i) => (
+        <div key={i} className="card" style={{padding: 14, marginBottom: 12}}>
+          <Row>
+            <Field label="Investment name">
+              <input value={inv.name} placeholder="Axis small cap SIP, EPF, NPS..."
+                onChange={e=>update(i, { name: e.target.value })} />
+            </Field>
+            <Field label="Category">
+              <select value={inv.category} onChange={e=>update(i, { category: e.target.value })}>
+                {investmentCategories.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select>
+            </Field>
+            <Field label="Mapped goal">
+              <select value={inv.goal} onChange={e=>update(i, { goal: e.target.value })}>
+                {investmentGoals.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              </select>
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Current value">
+              <MoneyInput value={inv.currentValue} onChange={v=>update(i, { currentValue: v })} />
+            </Field>
+            <Field label="Monthly SIP / contribution">
+              <MoneyInput value={inv.monthlyAmount} onChange={v=>update(i, { monthlyAmount: v })} />
+            </Field>
+            <Field label="Expected return %">
+              <input type="number" step="0.1" min="0" max="30" value={inv.expectedReturnPct}
+                onChange={e=>update(i, { expectedReturnPct: e.target.value === '' ? '' : Number(e.target.value) })} />
+            </Field>
+            <button type="button" onClick={()=>remove(i)} className="link remove-btn">Remove SIP</button>
+          </Row>
+        </div>
+      ))}
+      <button type="button" onClick={add} className="primary">+ Add more SIP / investment</button>
     </div>
   )
 }
@@ -528,7 +545,7 @@ const Field = ({ label, children, required = false, hint }) => (
 
 function cleanProfile(profile) {
   const cleaned = structuredClone(profile)
-  const kids = cleaned.basics.maritalStatus === 'married'
+  cleaned.basics.kids = cleaned.basics.maritalStatus === 'married'
     ? cleaned.basics.kids
         .filter(kid => kid.name?.trim() || kid.age !== '')
         .map((kid, i) => ({
@@ -537,10 +554,20 @@ function cleanProfile(profile) {
         }))
     : []
 
-  cleaned.basics.kids = kids
   cleaned.basics.dependentParentsCount = cleaned.basics.parentsDependent
     ? Math.max(1, Number(cleaned.basics.dependentParentsCount) || 1)
     : 0
+
+  cleaned.investments = cleaned.investments
+    .filter(inv => toNumber(inv.currentValue) > 0 || toNumber(inv.monthlyAmount) > 0)
+    .map((inv, i) => ({
+      name: inv.name?.trim() || `Investment ${i + 1}`,
+      category: inv.category,
+      currentValue: toNumber(inv.currentValue),
+      monthlyAmount: toNumber(inv.monthlyAmount),
+      expectedReturnPct: Number(inv.expectedReturnPct) || categoryReturnMap[inv.category] || 8,
+      goal: inv.goal || 'wealth',
+    }))
 
   return cleaned
 }
@@ -552,12 +579,10 @@ function validate(profile) {
   if (profile.basics.parentsDependent && Number(profile.basics.dependentParentsCount) < 1) {
     return 'Please enter at least 1 dependent parent, or select "No" for parent dependency.'
   }
-
   const partialKid = profile.basics.kids.find(kid => Boolean(kid.name?.trim()) !== (kid.age !== ''))
   if (profile.basics.maritalStatus === 'married' && partialKid) {
     return 'Please enter both name and age for each child, or remove the incomplete child row.'
   }
-
   return ''
 }
 
