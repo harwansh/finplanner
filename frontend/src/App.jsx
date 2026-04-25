@@ -321,7 +321,7 @@ function SecuritySection({ setPath }) {
 }
 
 function PlannerIntro() {
-  return <section className="sf-planner-intro" aria-label="Planner start"><span className="sf-kicker">Framework planner</span><h2>Apply the framework to salary, goals, protection, risk and investment decisions.</h2><p>Use the demo profile or your own numbers to see how salary reality, protection needs, goal hierarchy, tax context and risk capacity interact.</p><button className="sf-print-button" type="button" onClick={() => { trackEvent('print_framework_report'); window.print() }}>Print or save framework report as PDF</button></section>
+  return <section className="sf-planner-intro" aria-label="Planner start"><span className="sf-kicker">Framework planner</span><h2>Apply the framework to salary, goals, protection, risk and investment decisions.</h2><p>Use the demo profile or your own numbers to see how salary reality, protection needs, goal hierarchy, tax context and risk capacity interact.</p></section>
 }
 
 function FAQSection() {
