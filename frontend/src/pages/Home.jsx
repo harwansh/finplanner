@@ -202,20 +202,43 @@ export default function Home() {
   )
   const currentIndex = tabs.findIndex(([key]) => key === activeTab)
 
-  const goNext = () => {
-    const tabError = validateTab(activeTab, data)
-    if (tabError) {
-      setErr(tabError)
-      return
+  const validateUntil = (targetIndex) => {
+    const lastIndexToValidate = Math.min(targetIndex, tabs.length - 1)
+    for (let i = 0; i < lastIndexToValidate; i += 1) {
+      const tabError = validateTab(tabs[i][0], data)
+      if (tabError) {
+        setErr(tabError)
+        setActiveTab(tabs[i][0])
+        return false
+      }
     }
     setErr('')
-    setActiveTab(tabs[Math.min(currentIndex + 1, tabs.length - 1)][0])
+    return true
+  }
+
+  const handleTabClick = (key, index) => {
+    if (index <= currentIndex) {
+      setErr('')
+      setActiveTab(key)
+      return
+    }
+    if (validateUntil(index)) {
+      setActiveTab(key)
+    }
+  }
+
+  const goNext = () => {
+    const nextIndex = Math.min(currentIndex + 1, tabs.length - 1)
+    if (validateUntil(nextIndex)) {
+      setActiveTab(tabs[nextIndex][0])
+    }
   }
 
   const goBack = () => {
     setErr('')
     setActiveTab(tabs[Math.max(currentIndex - 1, 0)][0])
   }
+
 
   const submit = async (e) => {
     e.preventDefault()
@@ -259,7 +282,7 @@ export default function Home() {
                 type="button"
                 key={key}
                 className={`tab ${activeTab === key ? 'active' : ''} ${index < currentIndex ? 'done' : ''}`}
-                onClick={() => setActiveTab(key)}
+                onClick={() => handleTabClick(key, index)}
               >
                 <span>{index + 1}</span>{label}
               </button>
@@ -551,10 +574,27 @@ export default function Home() {
   )
 }
 
+function normalizeInsuranceForOutput(rawInsurance = {}) {
+  const currentLifeCover = toNumber(rawInsurance.currentLifeCover ?? rawInsurance.existingLifeCover ?? rawInsurance.lifeCover ?? 0)
+  const recommendedLifeCover = toNumber(rawInsurance.recommendedLifeCover ?? rawInsurance.requiredLifeCover ?? 0)
+  const currentHealthCover = toNumber(rawInsurance.currentHealthCover ?? rawInsurance.existingHealthCover ?? rawInsurance.healthCover ?? 0)
+  const recommendedHealthCover = toNumber(rawInsurance.recommendedHealthCover ?? rawInsurance.requiredHealthCover ?? 0)
+
+  return {
+    currentLifeCover,
+    recommendedLifeCover,
+    lifeGap: toNumber(rawInsurance.lifeGap ?? rawInsurance.lifeCoverGap ?? Math.max(0, recommendedLifeCover - currentLifeCover)),
+    currentHealthCover,
+    recommendedHealthCover,
+    healthGap: toNumber(rawInsurance.healthGap ?? rawInsurance.healthCoverGap ?? Math.max(0, recommendedHealthCover - currentHealthCover)),
+    note: rawInsurance.note || rawInsurance.lifeNote || 'Insurance need uses dependents, liabilities, expenses, existing assets and goal gaps.',
+  }
+}
+
 function Results({ result, inputData, cashflowPreview, taxPreview, insurancePreview, displayGoals }) {
   const { summary, plan, report, error } = result || {}
   const tax = summary?.tax || taxPreview
-  const insurance = summary?.insurance || insurancePreview
+  const insurance = normalizeInsuranceForOutput(plan?.insurance || summary?.insurance || insurancePreview)
   const outputGoals = buildOutputGoalsFromPlan(plan?.goals, displayGoals)
 
   const monthlyIncome = summary?.monthlyIncome ?? cashflowPreview.monthlyIncome
@@ -1118,30 +1158,6 @@ function cleanProfile(profile) {
       expectedReturnPct: Number(inv.expectedReturnPct) || categoryReturnMap[inv.category] || 8,
       goal: inv.goal || 'wealth',
     }))
-
-  if (toNumber(cleaned.salary?.monthlyEmployeeEpf) > 0) {
-    cleaned.investments.push({
-      name: 'Auto EPF from salary',
-      category: 'epf',
-      currentValue: 0,
-      monthlyAmount: toNumber(cleaned.salary.monthlyEmployeeEpf),
-      expectedReturnPct: categoryReturnMap.epf || 8.25,
-      goal: 'retirement',
-      source: 'salary',
-    })
-  }
-
-  if (toNumber(cleaned.salary?.monthlyEmployerNps) > 0) {
-    cleaned.investments.push({
-      name: 'Auto employer NPS from salary',
-      category: 'nps',
-      currentValue: 0,
-      monthlyAmount: toNumber(cleaned.salary.monthlyEmployerNps),
-      expectedReturnPct: categoryReturnMap.nps || 10,
-      goal: 'retirement',
-      source: 'salary',
-    })
-  }
 
   const manualGoals = cleaned.goals
     .filter(goal => goal.name?.trim() && toNumber(goal.presentCost) > 0 && Number(goal.years) > 0)

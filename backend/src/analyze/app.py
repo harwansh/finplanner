@@ -352,13 +352,40 @@ def compute_tax(profile):
     new_rebate = new_tax_before_rebate if new_taxable <= 1200000 else 0
 
     old_tax_after_rebate = max(0, old_tax_before_rebate - old_rebate)
-    new_tax_after_rebate = max(0, new_tax_before_rebate - new_rebate)
+    new_tax_after_rebate_before_relief = max(0, new_tax_before_rebate - new_rebate)
 
-    old_cess = old_tax_after_rebate * 0.04
-    new_cess = new_tax_after_rebate * 0.04
+    new_marginal_relief = 0
+    if new_taxable > 1200000:
+        max_tax_due_to_threshold = new_taxable - 1200000
+        if new_tax_after_rebate_before_relief > max_tax_due_to_threshold:
+            new_marginal_relief = new_tax_after_rebate_before_relief - max_tax_due_to_threshold
 
-    old_tax_with_cess = old_tax_after_rebate + old_cess
-    new_tax_with_cess = new_tax_after_rebate + new_cess
+    new_tax_after_rebate = max(0, new_tax_after_rebate_before_relief - new_marginal_relief)
+
+    def surcharge_rate(taxable_income, regime):
+        if taxable_income <= 5000000:
+            return 0
+        if taxable_income <= 10000000:
+            return 0.10
+        if taxable_income <= 20000000:
+            return 0.15
+        if taxable_income <= 50000000:
+            return 0.25
+        return 0.25 if regime == "new" else 0.37
+
+    old_surcharge_rate = surcharge_rate(old_taxable, "old")
+    new_surcharge_rate = surcharge_rate(new_taxable, "new")
+    old_surcharge = old_tax_after_rebate * old_surcharge_rate
+    new_surcharge = new_tax_after_rebate * new_surcharge_rate
+
+    old_tax_before_cess = old_tax_after_rebate + old_surcharge
+    new_tax_before_cess = new_tax_after_rebate + new_surcharge
+
+    old_cess = old_tax_before_cess * 0.04
+    new_cess = new_tax_before_cess * 0.04
+
+    old_tax_with_cess = old_tax_before_cess + old_cess
+    new_tax_with_cess = new_tax_before_cess + new_cess
 
     preferred = "Old" if old_tax_with_cess < new_tax_with_cess else "New"
 
@@ -376,6 +403,9 @@ def compute_tax(profile):
         "newTaxBeforeRebate": _money(new_tax_before_rebate),
         "oldRebate": _money(old_rebate),
         "newRebate": _money(new_rebate),
+        "newMarginalRelief": _money(new_marginal_relief),
+        "oldSurcharge": _money(old_surcharge),
+        "newSurcharge": _money(new_surcharge),
         "oldCess": _money(old_cess),
         "newCess": _money(new_cess),
         "oldTax": _money(old_tax_with_cess),
@@ -401,7 +431,6 @@ def compute_tax(profile):
             "section24B": _money(section_24b),
         },
     }
-
 
 def slab_breakdown(taxable, slabs):
     taxable = _num(taxable)
@@ -666,14 +695,49 @@ def build_plan(profile, summary):
     for kid in kids:
         child_age = _int(kid.get("age"))
         child_name = kid.get("name") or "Child"
-        years = max(1, 18 - child_age)
-        pv = 1500000
-        fv = _fv_lumpsum(pv, ASSUMPTIONS["educationInflation"], years)
-        existing_child, _ = project_investments(investments, years, goal="childEducation")
-        if len(kids) > 1:
-            existing_child = existing_child / len(kids)
-        gap = max(0, fv - existing_child)
-        add_goal(goals, f"{child_name} Education", "Required", "High", years, pv, fv, existing_child, _sip_required(gap, ASSUMPTIONS["defaultBalancedReturn"], years), "Uses child age and existing child education SIP rows.")
+
+        if child_age < 17:
+            years = max(1, 17 - child_age)
+            pv = 2500000
+            fv = _fv_lumpsum(pv, ASSUMPTIONS["educationInflation"], years)
+            existing_child, _ = project_investments(investments, years, goal="childEducation")
+            if len(kids) > 1:
+                existing_child = existing_child / len(kids)
+            gap = max(0, fv - existing_child)
+            add_goal(
+                goals,
+                f"{child_name} Higher Education",
+                "Auto-added",
+                "High",
+                years,
+                pv,
+                fv,
+                existing_child,
+                _sip_required(gap, ASSUMPTIONS["defaultBalancedReturn"], years),
+                "Auto-created at child age 17 using education inflation.",
+            )
+
+        if child_age < 22:
+            years = max(1, 22 - child_age)
+            pv = 1500000
+            marriage_inflation = 0.07
+            fv = _fv_lumpsum(pv, marriage_inflation, years)
+            existing_marriage, _ = project_investments(investments, years, goal="marriage")
+            if len(kids) > 1:
+                existing_marriage = existing_marriage / len(kids)
+            gap = max(0, fv - existing_marriage)
+            add_goal(
+                goals,
+                f"{child_name} Marriage",
+                "Auto-added",
+                "Medium",
+                years,
+                pv,
+                fv,
+                existing_marriage,
+                _sip_required(gap, ASSUMPTIONS["defaultBalancedReturn"], years),
+                "Auto-created at child age 22 using 7% inflation.",
+            )
 
     for user_goal in goals_input:
         years = _int(user_goal.get("years"))
