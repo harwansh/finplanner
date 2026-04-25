@@ -529,7 +529,7 @@ export default function Home() {
     setErr('')
     setResult(null)
     try {
-      const cleaned = canonicalizeSubmitPayload(cleanProfile(data))
+      const cleaned = buildSubmitPayload(data)
       const payloadShapeError = hasInvalidPayloadShape(cleaned)
       if (payloadShapeError) {
         setErr(payloadShapeError)
@@ -1399,6 +1399,128 @@ function toBackendNumber(value) {
   if (cleaned === '') return ''
   const n = Number(cleaned)
   return Number.isFinite(n) ? n : value
+}
+
+
+function deepMoneyToNumber(value) {
+  if (value === '' || value == null) return ''
+  if (typeof value === 'number') return Number.isFinite(value) ? value : ''
+  if (typeof value !== 'string') return value
+
+  const cleaned = value
+    .replace(/₹/g, '')
+    .replace(/Rs\.?/gi, '')
+    .replace(/INR/gi, '')
+    .replace(/,/g, '')
+    .replace(/%/g, '')
+    .trim()
+
+  if (cleaned === '') return ''
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : value
+}
+
+function normalizeNumbersDeep(value) {
+  if (Array.isArray(value)) return value.map(normalizeNumbersDeep)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, normalizeNumbersDeep(v)]))
+  }
+  return deepMoneyToNumber(value)
+}
+
+function buildSubmitPayload(rawProfile) {
+  const p = normalizeNumbersDeep(JSON.parse(JSON.stringify(rawProfile || {})))
+
+  p.basics = p.basics || {}
+  p.income = p.income || {}
+  p.salary = p.salary || {}
+  p.expenses = p.expenses || {}
+  p.liabilities = p.liabilities || {}
+  p.insurance = p.insurance || {}
+  p.tax = p.tax || {}
+  p.investments = Array.isArray(p.investments) ? p.investments : []
+  p.goals = Array.isArray(p.goals) ? p.goals : []
+
+  p.basics.age = deepMoneyToNumber(p.basics.age ?? p.basics.currentAge ?? p.currentAge ?? p.age)
+  p.basics.currentAge = p.basics.age
+
+  p.basics.desiredRetirementAge = deepMoneyToNumber(
+    p.basics.desiredRetirementAge ?? p.basics.retirementAge ?? p.retirementAge ?? p.desiredRetirementAge
+  )
+  p.basics.retirementAge = p.basics.desiredRetirementAge
+
+  p.basics.country = p.basics.country || p.country || 'India'
+  p.basics.cityTier = p.basics.cityTier || p.basics.cityType || p.cityTier || 'Metro'
+  p.basics.cityType = p.basics.cityTier
+  p.basics.maritalStatus = p.basics.maritalStatus || p.maritalStatus || 'single'
+  p.basics.employmentType = p.basics.employmentType || p.basics.employment || p.employmentType || 'salaried'
+  p.basics.employment = p.basics.employmentType
+  p.basics.kids = Array.isArray(p.basics.kids) ? p.basics.kids : (Array.isArray(p.basics.children) ? p.basics.children : [])
+  p.basics.children = p.basics.kids
+
+  p.income.monthlyAfterTax = deepMoneyToNumber(
+    p.income.monthlyAfterTax ?? p.income.monthlyIncomeAfterTax ?? p.income.monthlyIncome ?? p.income.netMonthlyIncome
+  )
+  p.income.monthlyIncomeAfterTax = p.income.monthlyAfterTax
+  p.income.monthlyIncome = p.income.monthlyAfterTax
+  p.income.netMonthlyIncome = p.income.monthlyAfterTax
+  p.income.otherMonthly = deepMoneyToNumber(p.income.otherMonthly ?? p.income.otherMonthlyIncome ?? 0)
+  p.income.otherMonthlyIncome = p.income.otherMonthly
+  p.income.bonusAnnual = deepMoneyToNumber(p.income.bonusAnnual ?? p.income.annualBonus ?? 0)
+  p.income.annualBonus = p.income.bonusAnnual
+
+  p.expenses.fixed = deepMoneyToNumber(p.expenses.fixed ?? p.expenses.fixedMonthlyExpenses ?? 0)
+  p.expenses.fixedMonthlyExpenses = p.expenses.fixed
+  p.expenses.variable = deepMoneyToNumber(p.expenses.variable ?? p.expenses.variableMonthlyExpenses ?? 0)
+  p.expenses.variableMonthlyExpenses = p.expenses.variable
+  p.expenses.annual = deepMoneyToNumber(p.expenses.annual ?? p.expenses.annualExpenses ?? 0)
+  p.expenses.annualExpenses = p.expenses.annual
+
+  p.monthlyEmi = deepMoneyToNumber(p.monthlyEmi ?? p.monthlyEMI ?? p.totalMonthlyEMI ?? 0)
+  p.totalMonthlyEMI = p.monthlyEmi
+
+  p.salary.basicSalary = deepMoneyToNumber(p.salary.basicSalary ?? p.salary.basic ?? p.salary.annualBasic ?? 0)
+  p.salary.basic = p.salary.basicSalary
+  p.salary.annualBasic = p.salary.basicSalary
+  p.salary.hraReceived = deepMoneyToNumber(p.salary.hraReceived ?? p.salary.hra ?? p.salary.annualHra ?? 0)
+  p.salary.hra = p.salary.hraReceived
+  p.salary.annualHra = p.salary.hraReceived
+  p.salary.epfContribution = deepMoneyToNumber(p.salary.epfContribution ?? p.salary.employeeEpf ?? p.salary.employeeEPF ?? 0)
+  p.salary.employeeEpf = p.salary.epfContribution
+  p.salary.employeeEPF = p.salary.epfContribution
+  p.salary.npsEmployer = deepMoneyToNumber(p.salary.npsEmployer ?? p.salary.employerNps ?? p.salary.employerNPS ?? 0)
+  p.salary.employerNps = p.salary.npsEmployer
+  p.salary.employerNPS = p.salary.npsEmployer
+  p.salary.grossEarning = deepMoneyToNumber(p.salary.grossEarning ?? p.salary.grossSalary ?? p.salary.annualGross ?? 0)
+  p.salary.grossSalary = p.salary.grossEarning
+  p.salary.annualGross = p.salary.grossEarning
+  p.salary.rentPaid = deepMoneyToNumber(p.salary.rentPaid ?? p.salary.annualRentPaid ?? p.salary.rentPaidMonthly ?? 0)
+  p.salary.annualRentPaid = p.salary.rentPaid
+
+  p.investments = p.investments
+    .filter((inv) => inv && typeof inv === 'object')
+    .map((inv, index) => ({
+      name: inv.name || `Investment ${index + 1}`,
+      category: inv.category || 'other',
+      goal: inv.goal || 'wealth',
+      currentValue: deepMoneyToNumber(inv.currentValue ?? 0),
+      monthlyAmount: deepMoneyToNumber(inv.monthlyAmount ?? inv.monthlySip ?? 0),
+      expectedReturnPct: deepMoneyToNumber(inv.expectedReturnPct ?? inv.returnPct ?? 8),
+    }))
+
+  p.goals = p.goals
+    .filter((goal) => goal && typeof goal === 'object')
+    .map((goal, index) => ({
+      name: goal.name || `Goal ${index + 1}`,
+      category: goal.category || 'wealth',
+      presentCost: deepMoneyToNumber(goal.presentCost ?? goal.todayNeed ?? 0),
+      years: deepMoneyToNumber(goal.years ?? 0),
+      inflationPct: deepMoneyToNumber(goal.inflationPct ?? 6),
+      expectedReturnPct: deepMoneyToNumber(goal.expectedReturnPct ?? 9),
+      priority: goal.priority || 'Medium',
+    }))
+
+  return p
 }
 
 function canonicalizeSubmitPayload(profile) {
