@@ -32,6 +32,10 @@ const empty = {
   insurance: { life: '', health: '', criticalIllness: '' },
   risk: 'moderate',
   investmentPreferences: [],
+  currentInvestments: {
+    equitySip: '', debtSip: '', epfPpfNps: '', nps: '', ppf: '',
+    retirementSip: '', childEducationSip: '', fdRd: '', gold: '', otherMonthlyInvestments: ''
+  },
   oneTimeFutureExpenses: '',
   existingGoals: '',
 }
@@ -59,6 +63,19 @@ const liabilityLabels = {
   creditCard: 'Credit card',
   vehicleLoan: 'Vehicle loan',
   otherDebt: 'Other debt',
+}
+
+const currentInvestmentLabels = {
+  equitySip: 'Equity mutual fund SIP',
+  debtSip: 'Debt / hybrid SIP',
+  epfPpfNps: 'EPF / PPF / NPS contribution',
+  nps: 'Additional NPS',
+  ppf: 'PPF contribution',
+  retirementSip: 'Retirement-focused SIP',
+  childEducationSip: 'Child education SIP',
+  fdRd: 'FD / RD monthly investment',
+  gold: 'Gold monthly investment',
+  otherMonthlyInvestments: 'Other monthly investments',
 }
 
 export default function Home() {
@@ -294,7 +311,19 @@ export default function Home() {
           </Row>
         </Section>
 
-        <Section title="7. Risk & investment preferences">
+        <Section title="7. Current monthly investments">
+          <div className="section-note">Enter SIPs/contributions already running every month. These are projected toward goals and reduce the new recommendation amount.</div>
+          <Row>
+            {Object.keys(empty.currentInvestments).map(k => (
+              <Field key={k} label={currentInvestmentLabels[k] || prettify(k)}>
+                <MoneyInput value={data.currentInvestments[k]}
+                  onChange={v=>set('currentInvestments',k,v)} />
+              </Field>
+            ))}
+          </Row>
+        </Section>
+
+        <Section title="8. Risk & investment preferences">
           <div className="muted small" style={{marginBottom:6}}>Risk appetite</div>
           <div className="radio-row">
             {['conservative','moderate','aggressive'].map(r => (
@@ -319,7 +348,7 @@ export default function Home() {
           </div>
         </Section>
 
-        <Section title="8. Future plans">
+        <Section title="9. Future plans">
           <Field label="Expected one-time future expenses" hint="Example: kid's MBA in 2038, car in 5 years, wedding in 2029">
             <textarea value={data.oneTimeFutureExpenses}
               onChange={e=>setTop('oneTimeFutureExpenses', e.target.value)} />
@@ -379,6 +408,8 @@ function Results({ result }) {
             <Kpi label="Monthly surplus" value={fmt(summary.monthlySurplus)} />
             <Kpi label="Savings rate" value={`${summary.savingsRatePct}%`} />
             <Kpi label="Emergency fund" value={`${summary.emergencyFundMonths} mo`} />
+            <Kpi label="Existing monthly investments" value={fmt(summary.currentMonthlyInvestments)} />
+            <Kpi label="Remaining surplus" value={fmt(summary.remainingSurplusAfterExistingInvestments)} />
           </div>
           {summary.monthlyExpenseBreakdown && (
             <div className="muted small" style={{marginTop: 12}}>
