@@ -190,7 +190,121 @@ def goal_inflation(category):
     return ASSUMPTIONS["generalInflation"]
 
 
+
+def _first_value(*values):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return ""
+
+
+def align_profile_field_aliases(profile):
+    """Accept old/new frontend field names so demo/manual form and backend validation match."""
+    if not isinstance(profile, dict):
+        return profile
+
+    basics = profile.setdefault("basics", {})
+    income = profile.setdefault("income", {})
+    salary = profile.setdefault("salary", {})
+    expenses = profile.setdefault("expenses", {})
+
+    basics["age"] = _first_value(
+        basics.get("age"),
+        basics.get("currentAge"),
+        basics.get("current_age"),
+        profile.get("age"),
+        profile.get("currentAge"),
+    )
+    basics["desiredRetirementAge"] = _first_value(
+        basics.get("desiredRetirementAge"),
+        basics.get("retirementAge"),
+        basics.get("desired_retirement_age"),
+        profile.get("desiredRetirementAge"),
+        profile.get("retirementAge"),
+    )
+    basics["cityTier"] = _first_value(
+        basics.get("cityTier"),
+        basics.get("cityType"),
+        basics.get("city"),
+    )
+    basics["employmentType"] = _first_value(
+        basics.get("employmentType"),
+        basics.get("employment"),
+    )
+
+    income["monthlyAfterTax"] = _first_value(
+        income.get("monthlyAfterTax"),
+        income.get("monthlyIncomeAfterTax"),
+        income.get("monthlyIncome"),
+        income.get("netMonthlyIncome"),
+        income.get("takeHomeMonthly"),
+        profile.get("monthlyAfterTax"),
+        profile.get("monthlyIncomeAfterTax"),
+    )
+    income["otherMonthly"] = _first_value(
+        income.get("otherMonthly"),
+        income.get("otherMonthlyIncome"),
+        income.get("otherIncomeMonthly"),
+    )
+    income["bonusAnnual"] = _first_value(
+        income.get("bonusAnnual"),
+        income.get("annualBonus"),
+        salary.get("bonusVariablePay"),
+    )
+
+    expenses["fixed"] = _first_value(
+        expenses.get("fixed"),
+        expenses.get("fixedMonthly"),
+        expenses.get("fixedMonthlyExpenses"),
+    )
+    expenses["variable"] = _first_value(
+        expenses.get("variable"),
+        expenses.get("variableMonthly"),
+        expenses.get("variableMonthlyExpenses"),
+    )
+    expenses["annual"] = _first_value(
+        expenses.get("annual"),
+        expenses.get("annualLumpSums"),
+        expenses.get("annualExpenses"),
+    )
+
+    salary["basicSalary"] = _first_value(
+        salary.get("basicSalary"),
+        salary.get("basic"),
+        salary.get("annualBasic"),
+    )
+    salary["hraReceived"] = _first_value(
+        salary.get("hraReceived"),
+        salary.get("hra"),
+        salary.get("annualHra"),
+    )
+    salary["epfContribution"] = _first_value(
+        salary.get("epfContribution"),
+        salary.get("employeeEpf"),
+        salary.get("employeeEPF"),
+        salary.get("ePfContribution"),
+    )
+    salary["npsEmployer"] = _first_value(
+        salary.get("npsEmployer"),
+        salary.get("employerNps"),
+        salary.get("employerNPS"),
+    )
+    salary["grossEarning"] = _first_value(
+        salary.get("grossEarning"),
+        salary.get("grossSalary"),
+        salary.get("annualGross"),
+    )
+    salary["rentPaid"] = _first_value(
+        salary.get("rentPaid"),
+        salary.get("annualRentPaid"),
+    )
+
+    return profile
+
+
+
 def normalize_profile(profile):
+    profile = align_profile_field_aliases(profile)
     p = copy.deepcopy(profile or {})
     basics = p.setdefault("basics", {})
 
@@ -660,3 +774,8 @@ def lambda_handler(event, context):
     except Exception as exc:
         print("Unhandled SmartFinly error:", exc.__class__.__name__, str(exc)[:300])
         return _json_response(500, {"error": "Internal error. Please try again later."})
+
+# SAM template uses Handler: app.handler.
+# Keep this wrapper so Lambda Function URL can call the expected symbol.
+def handler(event, context):
+    return lambda_handler(event, context)
