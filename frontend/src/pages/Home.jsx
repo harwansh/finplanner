@@ -73,7 +73,6 @@ const investorDemoProfile = {
     monthlyEmployeeEpf: '',
     monthlyProfessionalTax: '',
     rentPaidMonthly: '',
-    annualGross: '',
   },
   income: { monthlyAfterTax: 210000, monthlyIncomeAfterTax: 210000, monthlyIncome: 210000, netMonthlyIncome: 210000, bonusAnnual: 200000, annualBonus: 200000, otherMonthly: 10000, otherMonthlyIncome: 10000, expectedGrowthPct: 8 },
   expenses: { fixed: 80000, variable: 35000, annual: 240000 },
@@ -433,29 +432,29 @@ function LegalConsentBox({ accepted, onChange }) {
   )
 }
 
-
-
 function sfParseMoney(value) {
   if (value === '' || value == null) return 0
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0
   if (typeof value === 'boolean') return value
   if (typeof value !== 'string') return value
-  const cleaned = buildSmartFinlyPayload(data)
+
+  const text = value
     .replace(/₹/g, '')
     .replace(/Rs\.?/gi, '')
     .replace(/INR/gi, '')
     .replace(/,/g, '')
     .replace(/%/g, '')
     .trim()
-  if (cleaned === '') return 0
-  const n = Number(cleaned)
-  return Number.isFinite(n) ? n : value
+
+  if (text === '') return 0
+  const number = Number(text)
+  return Number.isFinite(number) ? number : value
 }
 
 function sfNormalizeDeep(value) {
   if (Array.isArray(value)) return value.map(sfNormalizeDeep)
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, sfNormalizeDeep(v)]))
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, sfNormalizeDeep(child)]))
   }
   return sfParseMoney(value)
 }
@@ -475,8 +474,12 @@ function buildSmartFinlyPayload(formState) {
 
   p.basics.age = sfParseMoney(p.basics.age ?? p.basics.currentAge ?? p.age ?? p.currentAge)
   p.basics.currentAge = p.basics.age
-  p.basics.desiredRetirementAge = sfParseMoney(p.basics.desiredRetirementAge ?? p.basics.retirementAge ?? p.desiredRetirementAge ?? p.retirementAge)
+
+  p.basics.desiredRetirementAge = sfParseMoney(
+    p.basics.desiredRetirementAge ?? p.basics.retirementAge ?? p.desiredRetirementAge ?? p.retirementAge
+  )
   p.basics.retirementAge = p.basics.desiredRetirementAge
+
   p.basics.country = p.basics.country || p.country || 'India'
   p.basics.cityTier = p.basics.cityTier || p.basics.cityType || p.cityTier || 'Metro'
   p.basics.cityType = p.basics.cityTier
@@ -485,28 +488,39 @@ function buildSmartFinlyPayload(formState) {
   p.basics.employment = p.basics.employmentType
   p.basics.kids = Array.isArray(p.basics.kids) ? p.basics.kids : (Array.isArray(p.basics.children) ? p.basics.children : [])
   p.basics.children = p.basics.kids
-  p.basics.dependentParentsCount = sfParseMoney(p.basics.dependentParentsCount ?? p.basics.numberOfDependentParents ?? 0)
+  p.basics.dependentParentsCount = sfParseMoney(
+    p.basics.dependentParentsCount ?? p.basics.numberOfDependentParents ?? 0
+  )
 
   p.salary.basicSalary = sfParseMoney(p.salary.basicSalary ?? p.salary.basic ?? p.salary.annualBasic ?? 0)
   p.salary.basic = p.salary.basicSalary
   p.salary.annualBasic = p.salary.basicSalary
+
   p.salary.hraReceived = sfParseMoney(p.salary.hraReceived ?? p.salary.hra ?? p.salary.annualHra ?? 0)
   p.salary.hra = p.salary.hraReceived
   p.salary.annualHra = p.salary.hraReceived
+
   p.salary.grossEarning = sfParseMoney(p.salary.grossEarning ?? p.salary.grossSalary ?? p.salary.annualGross ?? 0)
   p.salary.grossSalary = p.salary.grossEarning
   p.salary.annualGross = p.salary.grossEarning
-  p.salary.epfContribution = sfParseMoney(p.salary.epfContribution ?? p.salary.employeeEpf ?? p.salary.employeeEPF ?? p.salary.ePfContribution ?? 0)
+
+  p.salary.epfContribution = sfParseMoney(
+    p.salary.epfContribution ?? p.salary.employeeEpf ?? p.salary.employeeEPF ?? p.salary.ePfContribution ?? 0
+  )
   p.salary.employeeEpf = p.salary.epfContribution
   p.salary.employeeEPF = p.salary.epfContribution
   p.salary.ePfContribution = p.salary.epfContribution
+
   p.salary.npsEmployer = sfParseMoney(p.salary.npsEmployer ?? p.salary.employerNps ?? p.salary.employerNPS ?? 0)
   p.salary.employerNps = p.salary.npsEmployer
   p.salary.employerNPS = p.salary.npsEmployer
+
   p.salary.rentPaid = sfParseMoney(p.salary.rentPaid ?? p.salary.annualRentPaid ?? p.salary.rentPaidMonthly ?? 0)
   p.salary.annualRentPaid = p.salary.rentPaid
 
-  p.income.monthlyAfterTax = sfParseMoney(p.income.monthlyAfterTax ?? p.income.monthlyIncomeAfterTax ?? p.income.monthlyIncome ?? p.income.netMonthlyIncome ?? 0)
+  p.income.monthlyAfterTax = sfParseMoney(
+    p.income.monthlyAfterTax ?? p.income.monthlyIncomeAfterTax ?? p.income.monthlyIncome ?? p.income.netMonthlyIncome ?? 0
+  )
   p.income.monthlyIncomeAfterTax = p.income.monthlyAfterTax
   p.income.monthlyIncome = p.income.monthlyAfterTax
   p.income.netMonthlyIncome = p.income.monthlyAfterTax
@@ -552,15 +566,24 @@ function buildSmartFinlyPayload(formState) {
 
 function assertSmartFinlyPayload(payload, uiPreview) {
   const problems = []
-  const monthlyExpenses = Number(payload.expenses.fixed || 0) + Number(payload.expenses.variable || 0) + (Number(payload.expenses.annual || 0) / 12) + Number(payload.monthlyEmi || 0)
+  const monthlyExpenses =
+    Number(payload.expenses.fixed || 0) +
+    Number(payload.expenses.variable || 0) +
+    Number(payload.expenses.annual || 0) / 12 +
+    Number(payload.monthlyEmi || 0)
+
   const investmentValue = payload.investments.reduce((sum, inv) => sum + Number(inv.currentValue || 0), 0)
   const existingSip = payload.investments.reduce((sum, inv) => sum + Number(inv.monthlyAmount || 0), 0)
 
   if (!Number(payload.basics.age)) problems.push('age missing in payload')
   if (!Number(payload.basics.desiredRetirementAge)) problems.push('retirement age missing in payload')
   if (!Number(payload.income.monthlyAfterTax)) problems.push('monthly income missing in payload')
-  if (uiPreview && Number(uiPreview.monthlyExpenses || 0) > 0 && monthlyExpenses <= 0) problems.push('expenses lost before API call')
-  if (payload.investments.length > 0 && investmentValue <= 0 && existingSip <= 0) problems.push('investments lost before API call')
+  if (uiPreview && Number(uiPreview.monthlyExpenses || 0) > 0 && monthlyExpenses <= 0) {
+    problems.push('expenses lost before API call')
+  }
+  if (payload.investments.length > 0 && investmentValue <= 0 && existingSip <= 0) {
+    problems.push('investments lost before API call')
+  }
 
   return problems.join(', ')
 }
