@@ -1924,3 +1924,212 @@ button.link,
   .chart-card { padding: 16px !important; }
 }
 
+
+/* ===== SmartFinly readability rescue patch ===== */
+/* Fixes unreadable white preview cards and low-contrast markdown/report text. Style only. */
+
+.cashflow-preview,
+.cashflow-preview.success,
+.cashflow-preview.danger,
+.preview-card,
+.section-preview,
+.salary-preview {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025)),
+    rgba(14, 15, 20, 0.94) !important;
+  color: #fff7df !important;
+  border: 1px solid rgba(243, 211, 107, 0.24) !important;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.34) !important;
+}
+
+.cashflow-preview *,
+.cashflow-preview.success *,
+.cashflow-preview.danger *,
+.preview-card *,
+.section-preview *,
+.salary-preview * {
+  color: #fff7df !important;
+  opacity: 1 !important;
+}
+
+.cashflow-title,
+.cashflow-preview .cashflow-title,
+.preview-title {
+  color: #f7df8a !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.01em;
+}
+
+.cashflow-grid,
+.cashflow-total {
+  color: #fff7df !important;
+}
+
+.cashflow-grid span,
+.cashflow-total,
+.cashflow-total strong,
+.cashflow-grid strong {
+  color: #fff7df !important;
+  opacity: 1 !important;
+}
+
+.section-note,
+.section-note *,
+.chart-note,
+.chart-note *,
+.auto-goal-box,
+.auto-goal-box * {
+  color: #fff1c7 !important;
+  opacity: 1 !important;
+}
+
+.card,
+.card *,
+.section,
+.section *,
+.chart-card,
+.chart-card *,
+.kpi,
+.kpi *,
+.mini-kpi,
+.mini-kpi * {
+  text-shadow: none !important;
+}
+
+.field span,
+label,
+.required {
+  color: #ffefb3 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+input,
+select,
+textarea,
+.money-input input {
+  color: #ffffff !important;
+  background: rgba(255,255,255,0.075) !important;
+  border-color: rgba(255,255,255,0.20) !important;
+  font-weight: 750 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 247, 223, 0.62) !important;
+}
+
+.money-input .currency-prefix,
+.currency-prefix {
+  color: #f7df8a !important;
+  font-weight: 900 !important;
+}
+
+/* Markdown/report readability */
+.markdown,
+.report-markdown,
+.markdown p,
+.markdown li,
+.markdown td,
+.markdown th,
+.markdown div,
+.markdown span {
+  color: #fff7df !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown strong {
+  color: #f7df8a !important;
+  opacity: 1 !important;
+}
+
+.markdown hr {
+  border-color: rgba(243, 211, 107, 0.28) !important;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.45rem !important;
+  margin: 0.7rem 0 1rem !important;
+}
+
+.markdown li {
+  margin: 0.38rem 0 !important;
+  line-height: 1.55 !important;
+}
+
+.markdown ol {
+  list-style-position: outside !important;
+}
+
+.markdown ol li::marker,
+.markdown ul li::marker {
+  color: #f7df8a !important;
+  font-weight: 900 !important;
+}
+
+/* Fix cases where markdown ordered-list content appears visually separated after colon */
+.markdown ol li p {
+  display: inline !important;
+  margin: 0 !important;
+}
+
+/* Tables and slab rows */
+.slab-table-wrap,
+.slab-table,
+.goal-summary-row,
+.goal-summary-head,
+.markdown table {
+  color: #fff7df !important;
+}
+
+.slab-row,
+.slab-row *,
+.goal-summary-row,
+.goal-summary-row *,
+.goal-summary-head,
+.goal-summary-head * {
+  color: #fff7df !important;
+  opacity: 1 !important;
+}
+
+.slab-title {
+  color: #f7df8a !important;
+}
+
+/* Keep success/danger status readable on dark dashboard */
+.success,
+.text-success {
+  color: #9bff9b !important;
+}
+
+.danger,
+.text-danger,
+.err,
+.error-block {
+  color: #ffd4d4 !important;
+}
+
+.err *,
+.error-block * {
+  color: #ffd4d4 !important;
+}
+
+/* Mobile/zoom readability */
+@media (max-width: 900px) {
+  body {
+    font-size: 16px !important;
+  }
+
+  .cashflow-preview,
+  .preview-card,
+  .section-note {
+    padding: 16px !important;
+  }
+}
+
