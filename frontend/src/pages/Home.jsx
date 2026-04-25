@@ -8,7 +8,7 @@ const empty = {
     age: '',
     desiredRetirementAge: 60,
     country: 'India',
-    cityTier: 'Tier 1',
+    cityTier: 'Metro',
     maritalStatus: 'single',
     employmentType: 'salaried',
     kids: [],
@@ -23,14 +23,19 @@ const empty = {
   emergencyFund: '',
   assets: {
     bankSavings: '', fixedDeposits: '', mutualFunds: '', stocks: '',
-    epfPpfNps: '', gold: '', realEstate: '', otherAssets: ''
+    epfCorpus: '', ppfCorpus: '', npsCorpus: '', gold: '', realEstate: '', otherAssets: ''
   },
   liabilities: {
     homeLoan: '', personalLoan: '', educationLoan: '',
     creditCard: '', vehicleLoan: '', otherDebt: ''
   },
   insurance: { life: '', health: '', criticalIllness: '' },
-  tax: { deduction80C: '', nps80CCD1B: '', health80D: '', hraExemption: '' },
+  tax: {
+    deduction80C: '', nps80CCD1B: '', health80D: '', homeLoanInterest24B: '',
+    homeLoan80EEA: '', educationLoan80E: '', donation80G: '',
+    interest80TTA_TTB: '', hraExemption: '', ltaExemption: '',
+    professionalTax: '', otherAnnualIncome: ''
+  },
   investments: [],
   goals: [],
 }
@@ -40,7 +45,9 @@ const assetLabels = {
   fixedDeposits: 'Fixed deposits',
   mutualFunds: 'Mutual funds current value',
   stocks: 'Stocks current value',
-  epfPpfNps: 'EPF / PPF / NPS current corpus',
+  epfCorpus: 'EPF current corpus',
+  ppfCorpus: 'PPF current corpus',
+  npsCorpus: 'NPS current corpus',
   gold: 'Gold',
   realEstate: 'Real estate',
   otherAssets: 'Other assets',
@@ -59,7 +66,15 @@ const taxLabels = {
   deduction80C: '80C investments',
   nps80CCD1B: 'NPS 80CCD(1B)',
   health80D: 'Health insurance 80D',
-  hraExemption: 'HRA exemption estimate',
+  homeLoanInterest24B: 'Home loan interest 24(b)',
+  homeLoan80EEA: 'Affordable housing 80EEA',
+  educationLoan80E: 'Education loan interest 80E',
+  donation80G: 'Donation 80G',
+  interest80TTA_TTB: 'Savings/deposit interest 80TTA/80TTB',
+  hraExemption: 'HRA exemption',
+  ltaExemption: 'LTA exemption',
+  professionalTax: 'Professional tax',
+  otherAnnualIncome: 'Other annual taxable income',
 }
 
 const investmentCategories = [
@@ -68,7 +83,7 @@ const investmentCategories = [
   ['midcap', 'Aggressive - Midcap', 17],
   ['smallcap', 'Aggressive - Smallcap', 16],
   ['niftyNext50', 'Aggressive - Nifty Next 50', 16],
-  ['threeMStock', 'Aggressive - 3M stock basket', 18],
+  ['customStockBasket', 'Aggressive - custom stock basket', 18],
   ['multicap', 'Core - Multicap', 15],
   ['flexicap', 'Core - Flexicap', 14],
   ['nifty50', 'Core - Nifty 50', 13],
@@ -181,7 +196,7 @@ export default function Home() {
             <Field label="City tier" required>
               <select value={data.basics.cityTier}
                 onChange={e=>set('basics','cityTier',e.target.value)} required>
-                <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option>
+                <option>Metro</option><option>Tier 1</option><option>Tier 2</option><option>Tier 3</option><option>Tier 4</option><option>Rural / Village</option>
               </select>
             </Field>
           </Row>
@@ -322,7 +337,7 @@ export default function Home() {
         </Section>
 
         <Section title="7. Tax inputs FY 2025-26">
-          <div className="section-note">Optional deductions for old/new regime comparison.</div>
+          <div className="section-note">Optional FY2025-26 deductions/exemptions. Enter all applicable values so FinOS can compare old vs new regime.</div>
           <Row>
             {Object.keys(empty.tax).map(k => (
               <Field key={k} label={taxLabels[k] || prettify(k)}>

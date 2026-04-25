@@ -32,7 +32,7 @@ ASSUMPTIONS = {
 
 RETIREMENT_CATEGORIES = {"epf", "ppf", "nps", "retirementSip", "equityIndex", "equityLargeCap", "equityFlexiCap", "nifty50"}
 LOW_RISK_CATEGORIES = {"fdRd", "debtFund", "liquidFund", "ppf", "epf"}
-GROWTH_CATEGORIES = {"momentum", "value", "midcap", "smallcap", "niftyNext50", "threeMStock", "multicap", "flexicap", "nifty50", "us500", "smallcase", "equityLargeCap", "equityMidCap", "equitySmallCap", "equityFlexiCap", "equityIndex"}
+GROWTH_CATEGORIES = {"momentum", "value", "midcap", "smallcap", "niftyNext50", "customStockBasket", "multicap", "flexicap", "nifty50", "us500", "smallcase", "equityLargeCap", "equityMidCap", "equitySmallCap", "equityFlexiCap", "equityIndex"}
 
 DEFAULT_RETURNS = {
     "momentum": 18,
@@ -40,7 +40,7 @@ DEFAULT_RETURNS = {
     "midcap": 17,
     "smallcap": 16,
     "niftyNext50": 16,
-    "threeMStock": 18,
+    "customStockBasket": 18,
     "multicap": 15,
     "flexicap": 14,
     "nifty50": 13,
@@ -245,26 +245,68 @@ def validate_profile(profile):
 def compute_tax(profile):
     income = profile.get("income", {}) or {}
     tax = profile.get("tax", {}) or {}
-    gross_income = (_num(income.get("monthlyAfterTax")) + _num(income.get("otherMonthly"))) * 12 + _num(income.get("bonusAnnual"))
-    old_deductions = min(150000, _num(tax.get("deduction80C"))) + min(50000, _num(tax.get("nps80CCD1B"))) + _num(tax.get("health80D")) + _num(tax.get("hraExemption"))
-    old_taxable = max(0, gross_income - 50000 - old_deductions)
-    new_taxable = max(0, gross_income - 75000)
 
-    old_tax = slab_tax_old(old_taxable)
-    new_tax = slab_tax_new_2025(new_taxable)
-    old_tax *= 1.04
-    new_tax *= 1.04
-    preferred = "Old" if old_tax < new_tax else "New"
+    gross_income = (
+        (_num(income.get("monthlyAfterTax")) + _num(income.get("otherMonthly"))) * 12
+        + _num(income.get("bonusAnnual"))
+        + _num(tax.get("otherAnnualIncome"))
+    )
+
+    standard_old = 50000
+    standard_new = 75000
+
+    deduction_80c = min(150000, _num(tax.get("deduction80C")))
+    deduction_80ccd_1b = min(50000, _num(tax.get("nps80CCD1B")))
+    deduction_80d = _num(tax.get("health80D"))
+    deduction_80g = _num(tax.get("donation80G"))
+    deduction_80e = _num(tax.get("educationLoan80E"))
+    deduction_80tta_ttb = _num(tax.get("interest80TTA_TTB"))
+    deduction_80eea = min(150000, _num(tax.get("homeLoan80EEA")))
+    section_24b = min(200000, _num(tax.get("homeLoanInterest24B")))
+    hra = _num(tax.get("hraExemption"))
+    lta = _num(tax.get("ltaExemption"))
+    professional_tax = _num(tax.get("professionalTax"))
+
+    old_deductions = (
+        standard_old + deduction_80c + deduction_80ccd_1b + deduction_80d
+        + deduction_80g + deduction_80e + deduction_80tta_ttb
+        + deduction_80eea + section_24b + hra + lta + professional_tax
+    )
+    new_deductions = standard_new
+
+    old_taxable = max(0, gross_income - old_deductions)
+    new_taxable = max(0, gross_income - new_deductions)
+
+    old_tax_with_cess = slab_tax_old(old_taxable) * 1.04
+    new_tax_with_cess = slab_tax_new_2025(new_taxable) * 1.04
+
+    preferred = "Old" if old_tax_with_cess < new_tax_with_cess else "New"
     return {
         "grossIncome": _money(gross_income),
+        "oldDeductions": _money(old_deductions),
+        "newDeductions": _money(new_deductions),
         "oldTaxable": _money(old_taxable),
         "newTaxable": _money(new_taxable),
-        "oldTax": _money(old_tax),
-        "newTax": _money(new_tax),
+        "oldTax": _money(old_tax_with_cess),
+        "newTax": _money(new_tax_with_cess),
         "preferredRegime": preferred,
-        "savingsVsOther": _money(abs(old_tax - new_tax)),
+        "savingsVsOther": _money(abs(old_tax_with_cess - new_tax_with_cess)),
+        "deductionBreakdown": {
+            "standardDeductionOld": _money(standard_old),
+            "standardDeductionNew": _money(standard_new),
+            "section80C": _money(deduction_80c),
+            "section80CCD1B": _money(deduction_80ccd_1b),
+            "section80D": _money(deduction_80d),
+            "section80G": _money(deduction_80g),
+            "section80E": _money(deduction_80e),
+            "section80TTA_TTB": _money(deduction_80tta_ttb),
+            "section80EEA": _money(deduction_80eea),
+            "section24B": _money(section_24b),
+            "hra": _money(hra),
+            "lta": _money(lta),
+            "professionalTax": _money(professional_tax),
+        },
     }
-
 
 def slab_tax_old(taxable):
     taxable = _num(taxable)
@@ -457,8 +499,13 @@ def compute_insurance(profile, summary, goals):
     base_health = 1000000 if basics.get("maritalStatus") == "single" else 2000000
     base_health += 500000 * len(basics.get("kids", []))
     base_health += 750000 * _int(basics.get("dependentParentsCount"))
-    if basics.get("cityTier") == "Tier 1":
-        base_health *= 1.25
+    city_type = basics.get("cityTier")
+    if city_type in {"Metro", "Tier 1"}:
+        base_health *= 1.30
+    elif city_type in {"Tier 2", "Tier 3"}:
+        base_health *= 1.10
+    elif city_type in {"Tier 4", "Rural / Village"}:
+        base_health *= 0.90
     existing_health = _num(insurance.get("health"))
 
     return {
@@ -604,6 +651,10 @@ def build_report(profile, summary, plan, ai_notes=None):
         "### 5. Tax Snapshot FY 2025-26",
         "",
         f"- Gross annual income considered: {_fmt_money(tax['grossIncome'])}",
+        f"- Old regime deductions considered: {_fmt_money(tax.get('oldDeductions'))}",
+        f"- New regime deductions considered: {_fmt_money(tax.get('newDeductions'))}",
+        f"- Old regime taxable income: {_fmt_money(tax.get('oldTaxable'))}",
+        f"- New regime taxable income: {_fmt_money(tax.get('newTaxable'))}",
         f"- Old regime tax estimate: {_fmt_money(tax['oldTax'])}",
         f"- New regime tax estimate: {_fmt_money(tax['newTax'])}",
         f"- Suggested regime: {tax['preferredRegime']}",
