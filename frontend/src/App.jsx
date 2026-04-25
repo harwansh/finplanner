@@ -1,6 +1,40 @@
 import { useEffect, useMemo, useState } from 'react'
 import Home from './pages/Home.jsx'
 import './trust.css'
+import './ten.css'
+
+const seoRoutes = {
+  '/ai-financial-planner-india': {
+    kicker: 'AI financial planner India',
+    title: 'AI financial planner for salaried India.',
+    description: 'Plan salary, tax, SIPs, insurance, liabilities, goals and retirement with India-specific educational AI guidance.',
+    bullets: ['Salary and cash-flow planning', 'Old vs new tax regime context', 'SIP and goal gap estimates', 'Insurance and retirement readiness'],
+  },
+  '/salary-tax-planner-india': {
+    kicker: 'Salary tax planner India',
+    title: 'Understand salary, HRA, EPF, NPS and tax trade-offs.',
+    description: 'Connect income, deductions, tax paid, HRA, EPF, NPS and family goals before making planning decisions.',
+    bullets: ['HRA and salary components', '80C, 80D and NPS context', 'Old vs new regime comparison', 'Cash-flow impact after tax'],
+  },
+  '/sip-goal-planner': {
+    kicker: 'SIP goal planner',
+    title: 'Map SIPs to real goals, not just returns.',
+    description: 'Estimate inflation-adjusted goals, existing investment support and monthly SIP gaps for education, home, retirement and wealth goals.',
+    bullets: ['Inflation-adjusted goals', 'Goal-linked SIPs', 'Existing investment mapping', 'Monthly gap estimates'],
+  },
+  '/retirement-planner-india': {
+    kicker: 'Retirement planner India',
+    title: 'Estimate retirement direction with clear assumptions.',
+    description: 'Use current age, retirement age, investments, EPF, NPS, expenses and assumptions to understand retirement readiness.',
+    bullets: ['Retirement age and horizon', 'EPF/NPS/SIP mapping', 'Inflation and withdrawal assumptions', 'Corpus direction'],
+  },
+  '/insurance-gap-calculator': {
+    kicker: 'Insurance gap calculator',
+    title: 'Check whether cover matches obligations.',
+    description: 'Review life and health cover against expenses, dependents, liabilities and financial goals before assuming protection is enough.',
+    bullets: ['Life cover gap', 'Health cover context', 'Liability protection', 'Dependent-aware planning'],
+  },
+}
 
 const pageMeta = {
   '/': {
@@ -31,6 +65,10 @@ const pageMeta = {
     title: 'Security — SmartFinly',
     description: 'SmartFinly security posture, sensitive-data boundaries and production deployment recommendations.',
   },
+  ...Object.fromEntries(Object.entries(seoRoutes).map(([path, page]) => [path, {
+    title: `${page.title} — SmartFinly`,
+    description: page.description,
+  }])),
 }
 
 function normalizePath(pathname) {
@@ -116,14 +154,7 @@ function SiteHeader({ path, setPath }) {
       </div>
       <nav className="sf-nav" aria-label="Primary navigation">
         {navItems.map(([href, label]) => (
-          <a
-            key={href}
-            href={href}
-            className={path === href ? 'active' : ''}
-            onClick={(event) => navigate(event, href, setPath)}
-          >
-            {label}
-          </a>
+          <a key={href} href={href} className={path === href ? 'active' : ''} onClick={(event) => navigate(event, href, setPath)}>{label}</a>
         ))}
       </nav>
     </header>
@@ -132,7 +163,7 @@ function SiteHeader({ path, setPath }) {
 
 function LandingHero({ setPath }) {
   return (
-    <section className="sf-top-hero" id="top" aria-label="SmartFinly overview">
+    <section className="sf-top-hero sf-hero-10" id="top" aria-label="SmartFinly overview">
       <div className="sf-hero-copy">
         <div className="sf-eyebrow">Educational AI planning, not product selling</div>
         <h1>One financial plan for your salary, tax, SIPs, insurance and goals.</h1>
@@ -142,22 +173,35 @@ function LandingHero({ setPath }) {
         </p>
         <div className="sf-hero-actions">
           <a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Start free planner</a>
-          <a className="sf-secondary-link" href="/learn" onClick={(event) => navigate(event, '/learn', setPath)}>Read finance guides</a>
+          <a className="sf-secondary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Try demo profile</a>
         </div>
         <div className="sf-hero-microcopy">
           No PAN, Aadhaar, OTP, bank account, UPI ID, password or brokerage login required.
         </div>
       </div>
 
-      <div className="sf-proof-card" id="trust">
-        <strong>Why users can trust it</strong>
-        <ul>
-          <li>Education-first output with no buy/sell calls or guaranteed returns.</li>
-          <li>India-specific workflow for salary, HRA, EPF, NPS, tax deductions and family goals.</li>
-          <li>Backend rejects sensitive identifiers such as PAN, Aadhaar, OTP and account details.</li>
-          <li>Production deployment path includes Cognito, JWT auth and API throttling.</li>
-        </ul>
+      <div className="sf-proof-card sf-report-card" id="trust">
+        <strong>What the report covers</strong>
+        <div className="sf-mini-report">
+          <span>Cash-flow surplus</span>
+          <span>Tax regime context</span>
+          <span>Goal gaps</span>
+          <span>Insurance readiness</span>
+          <span>Retirement direction</span>
+          <span>Next-step priorities</span>
+        </div>
       </div>
+    </section>
+  )
+}
+
+function TrustBar() {
+  return (
+    <section className="sf-trust-bar" aria-label="SmartFinly trust guarantees">
+      <div><strong>0</strong><span>product sales</span></div>
+      <div><strong>No</strong><span>PAN / Aadhaar / OTP</span></div>
+      <div><strong>India</strong><span>salary + tax context</span></div>
+      <div><strong>AI + math</strong><span>deterministic first</span></div>
     </section>
   )
 }
@@ -193,13 +237,36 @@ function FeatureGrid() {
         </p>
       </div>
       <div className="sf-feature-grid">
-        {features.map(([title, body]) => (
-          <article className="sf-feature-card" key={title}>
-            <strong>{title}</strong>
-            <p>{body}</p>
-          </article>
-        ))}
+        {features.map(([title, body]) => <article className="sf-feature-card" key={title}><strong>{title}</strong><p>{body}</p></article>)}
       </div>
+    </section>
+  )
+}
+
+function ComparisonSection() {
+  const rows = [
+    ['Generic finance blog', 'Explains concepts', 'Does not connect your salary, tax, goals and insurance together.'],
+    ['Spreadsheet', 'Flexible calculations', 'Hard to maintain and does not explain trade-offs clearly.'],
+    ['AI chatbot', 'Easy conversation', 'Can hallucinate math or cross compliance boundaries.'],
+    ['SmartFinly', 'Structured + explainable', 'Uses deterministic calculations first, then AI for educational explanation.'],
+  ]
+
+  return (
+    <section className="sf-section sf-comparison" aria-label="SmartFinly comparison">
+      <div className="sf-section-heading"><span>Why SmartFinly</span><h2>Built between a spreadsheet and a financial coach.</h2></div>
+      <div className="sf-comparison-grid">
+        {rows.map(([name, strength, gap]) => <article key={name}><strong>{name}</strong><em>{strength}</em><p>{gap}</p></article>)}
+      </div>
+    </section>
+  )
+}
+
+function AssumptionsSection() {
+  const assumptions = ['Inflation matters', 'Expected returns are assumptions', 'Tax rules can change', 'Insurance needs depend on dependents', 'AI output is educational']
+  return (
+    <section className="sf-section sf-assumptions" aria-label="Planning assumptions">
+      <div className="sf-section-heading"><span>Transparent assumptions</span><h2>No black-box promises.</h2><p>SmartFinly keeps planning language grounded by showing assumptions, gaps and educational boundaries.</p></div>
+      <div className="sf-pill-row">{assumptions.map((item) => <span key={item}>{item}</span>)}</div>
     </section>
   )
 }
@@ -231,16 +298,7 @@ function SecuritySection({ setPath }) {
 }
 
 function PlannerIntro() {
-  return (
-    <section className="sf-planner-intro" aria-label="Planner start">
-      <span className="sf-kicker">Try the planner</span>
-      <h2>Start with the demo profile or build your own plan step by step.</h2>
-      <p>
-        The planner below is intentionally detailed because real financial decisions connect across salary,
-        taxes, debt, insurance, investments and goals. Use the demo profile for a fast preview.
-      </p>
-    </section>
-  )
+  return <section className="sf-planner-intro" aria-label="Planner start"><span className="sf-kicker">Try the planner</span><h2>Start with the demo profile or build your own plan step by step.</h2><p>The planner below is intentionally detailed because real financial decisions connect across salary, taxes, debt, insurance, investments and goals. Use the demo profile for a fast preview.</p></section>
 }
 
 function FAQSection() {
@@ -250,185 +308,50 @@ function FAQSection() {
     ['Who is this built for?', 'The workflow is optimized for salaried Indian users and families who want to connect cash flow, tax, insurance, investments and goals.'],
     ['Can this be made production-ready?', 'Yes. The repo includes an authenticated SAM template with Cognito, HTTP API JWT auth and throttling as the production starting point.'],
   ]
-
-  return (
-    <section className="sf-section sf-faq" aria-label="Frequently asked questions">
-      <div className="sf-section-heading">
-        <span>FAQ</span>
-        <h2>Questions before you start</h2>
-      </div>
-      <div className="sf-faq-grid">
-        {faqs.map(([question, answer]) => (
-          <details key={question}>
-            <summary>{question}</summary>
-            <p>{answer}</p>
-          </details>
-        ))}
-      </div>
-    </section>
-  )
+  return <section className="sf-section sf-faq" aria-label="Frequently asked questions"><div className="sf-section-heading"><span>FAQ</span><h2>Questions before you start</h2></div><div className="sf-faq-grid">{faqs.map(([question, answer]) => <details key={question}><summary>{question}</summary><p>{answer}</p></details>)}</div></section>
 }
 
 function LearnPage({ setPath }) {
   const guides = [
-    ['Investments', 'SIP basics, asset allocation, EPF, PPF, NPS, mutual funds and goal-linked investing.'],
-    ['Tax planning', 'Old vs new regime, HRA, 80C, 80D, NPS and salary-structure planning.'],
-    ['Loans', 'EMIs, home-loan affordability, prepayment decisions and debt-risk checks.'],
-    ['Credit cards', 'Responsible usage, rewards, interest traps, credit scores and repayment discipline.'],
-    ['Insurance', 'Life cover, health cover, critical illness and emergency-fund readiness.'],
-    ['Retirement', 'Retirement corpus, withdrawal assumptions, inflation and long-term investing.'],
+    ['Investments', 'SIP basics, asset allocation, EPF, PPF, NPS, mutual funds and goal-linked investing.', '/sip-goal-planner'],
+    ['Tax planning', 'Old vs new regime, HRA, 80C, 80D, NPS and salary-structure planning.', '/salary-tax-planner-india'],
+    ['Loans', 'EMIs, home-loan affordability, prepayment decisions and debt-risk checks.', '/planner'],
+    ['Credit cards', 'Responsible usage, rewards, interest traps, credit scores and repayment discipline.', '/planner'],
+    ['Insurance', 'Life cover, health cover, critical illness and emergency-fund readiness.', '/insurance-gap-calculator'],
+    ['Retirement', 'Retirement corpus, withdrawal assumptions, inflation and long-term investing.', '/retirement-planner-india'],
   ]
+  return <main className="sf-page"><section className="sf-section-heading sf-page-hero"><span>Learn</span><h1>Personal finance guides for salaried India.</h1><p>Use the guides to understand the concepts, then use the planner to connect them to your own numbers.</p><a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Open planner</a></section><section className="sf-feature-grid">{guides.map(([title, body, href]) => <article className="sf-feature-card" key={title}><strong>{title}</strong><p>{body}</p><a href={href} onClick={(event) => navigate(event, href, setPath)}>Explore</a></article>)}</section></main>
+}
 
-  return (
-    <main className="sf-page">
-      <section className="sf-section-heading sf-page-hero">
-        <span>Learn</span>
-        <h1>Personal finance guides for salaried India.</h1>
-        <p>Use the guides to understand the concepts, then use the planner to connect them to your own numbers.</p>
-        <a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Open planner</a>
-      </section>
-      <section className="sf-feature-grid">
-        {guides.map(([title, body]) => (
-          <article className="sf-feature-card" key={title}>
-            <strong>{title}</strong>
-            <p>{body}</p>
-          </article>
-        ))}
-      </section>
-    </main>
-  )
+function SeoLandingPage({ page, setPath }) {
+  return <main className="sf-page sf-seo-page"><section className="sf-section-heading sf-page-hero"><span>{page.kicker}</span><h1>{page.title}</h1><p>{page.description}</p><a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Open SmartFinly planner</a></section><section className="sf-legal-grid">{page.bullets.map((bullet) => <article className="sf-feature-card" key={bullet}><strong>{bullet}</strong><p>Use SmartFinly to connect this planning area with cash flow, tax, goals, insurance and retirement context.</p></article>)}</section><FAQSection /></main>
 }
 
 function LegalPage({ type }) {
   const content = useMemo(() => ({
-    privacy: {
-      kicker: 'Privacy policy',
-      title: 'Privacy-first financial planning boundaries.',
-      sections: [
-        ['What SmartFinly processes', 'The planner may process salary, expenses, liabilities, insurance, investments, tax and goal inputs to generate educational planning output.'],
-        ['What not to enter', 'Do not enter PAN, Aadhaar, OTP, passwords, bank account numbers, UPI IDs, brokerage credentials or other sensitive identifiers.'],
-        ['Demo vs production', 'The demo deployment is for sample data. Use the authenticated production deployment before collecting real user financial data.'],
-        ['User control', 'A production deployment should define retention, deletion and export controls before launch.'],
-      ],
-    },
-    terms: {
-      kicker: 'Terms of use',
-      title: 'Use SmartFinly as an educational planning tool.',
-      sections: [
-        ['Educational use', 'SmartFinly helps users understand personal-finance scenarios and does not replace a qualified professional.'],
-        ['No misuse', 'Do not use the planner to enter sensitive identifiers, credentials, unlawful content or another person’s data without consent.'],
-        ['No guarantees', 'Outputs depend on assumptions and user inputs. They are not guarantees of returns, tax savings or financial outcomes.'],
-        ['Availability', 'The app may change, pause or remove features as the product evolves.'],
-      ],
-    },
-    disclaimer: {
-      kicker: 'Disclaimer',
-      title: 'SmartFinly is not regulated financial advice.',
-      sections: [
-        ['Not investment advice', 'SmartFinly is not SEBI-registered investment advice, research analysis, portfolio management or product distribution.'],
-        ['Not tax or legal advice', 'Tax calculations are educational estimates and not tax filing, legal advice or professional certification.'],
-        ['Not insurance or lending', 'SmartFinly is not insurance broking, lending, credit underwriting or product execution.'],
-        ['Review assumptions', 'All outputs should be reviewed with qualified professionals before financial decisions.'],
-      ],
-    },
-    security: {
-      kicker: 'Security',
-      title: 'Security posture and production-readiness checklist.',
-      sections: [
-        ['Sensitive-data rejection', 'The backend rejects common sensitive identifiers such as PAN, Aadhaar, OTP, passwords, account numbers and UPI-like data.'],
-        ['Authenticated deployment', 'Use the Cognito + HTTP API JWT-authenticated SAM template for production deployments.'],
-        ['Rate limits', 'Protect Bedrock and API usage with API throttling, WAF rules and per-user application limits.'],
-        ['Logging', 'Production logs should never contain full financial payloads or sensitive user inputs.'],
-      ],
-    },
+    privacy: { kicker: 'Privacy policy', title: 'Privacy-first financial planning boundaries.', sections: [['What SmartFinly processes', 'The planner may process salary, expenses, liabilities, insurance, investments, tax and goal inputs to generate educational planning output.'], ['What not to enter', 'Do not enter PAN, Aadhaar, OTP, passwords, bank account numbers, UPI IDs, brokerage credentials or other sensitive identifiers.'], ['Demo vs production', 'The demo deployment is for sample data. Use the authenticated production deployment before collecting real user financial data.'], ['User control', 'A production deployment should define retention, deletion and export controls before launch.']] },
+    terms: { kicker: 'Terms of use', title: 'Use SmartFinly as an educational planning tool.', sections: [['Educational use', 'SmartFinly helps users understand personal-finance scenarios and does not replace a qualified professional.'], ['No misuse', 'Do not use the planner to enter sensitive identifiers, credentials, unlawful content or another person’s data without consent.'], ['No guarantees', 'Outputs depend on assumptions and user inputs. They are not guarantees of returns, tax savings or financial outcomes.'], ['Availability', 'The app may change, pause or remove features as the product evolves.']] },
+    disclaimer: { kicker: 'Disclaimer', title: 'SmartFinly is not regulated financial advice.', sections: [['Not investment advice', 'SmartFinly is not SEBI-registered investment advice, research analysis, portfolio management or product distribution.'], ['Not tax or legal advice', 'Tax calculations are educational estimates and not tax filing, legal advice or professional certification.'], ['Not insurance or lending', 'SmartFinly is not insurance broking, lending, credit underwriting or product execution.'], ['Review assumptions', 'All outputs should be reviewed with qualified professionals before financial decisions.']] },
+    security: { kicker: 'Security', title: 'Security posture and production-readiness checklist.', sections: [['Sensitive-data rejection', 'The backend rejects common sensitive identifiers such as PAN, Aadhaar, OTP, passwords, account numbers and UPI-like data.'], ['Authenticated deployment', 'Use the Cognito + HTTP API JWT-authenticated SAM template for production deployments.'], ['Rate limits', 'Protect Bedrock and API usage with API throttling, WAF rules and per-user application limits.'], ['Logging', 'Production logs should never contain full financial payloads or sensitive user inputs.']] },
   })[type], [type])
-
-  return (
-    <main className="sf-page sf-legal-page">
-      <section className="sf-section-heading sf-page-hero">
-        <span>{content.kicker}</span>
-        <h1>{content.title}</h1>
-      </section>
-      <section className="sf-legal-grid">
-        {content.sections.map(([title, body]) => (
-          <article className="sf-feature-card" key={title}>
-            <strong>{title}</strong>
-            <p>{body}</p>
-          </article>
-        ))}
-      </section>
-    </main>
-  )
+  return <main className="sf-page sf-legal-page"><section className="sf-section-heading sf-page-hero"><span>{content.kicker}</span><h1>{content.title}</h1></section><section className="sf-legal-grid">{content.sections.map(([title, body]) => <article className="sf-feature-card" key={title}><strong>{title}</strong><p>{body}</p></article>)}</section></main>
 }
 
 function PlannerPage() {
-  return (
-    <main id="planner">
-      <PlannerIntro />
-      <Home />
-    </main>
-  )
+  return <main id="planner"><PlannerIntro /><Home /></main>
 }
 
 function HomePage({ setPath }) {
-  return (
-    <>
-      <LandingHero setPath={setPath} />
-      <ConfidenceStrip />
-      <FeatureGrid />
-      <SecuritySection setPath={setPath} />
-      <section className="sf-section sf-product-preview">
-        <div className="sf-section-heading">
-          <span>Product preview</span>
-          <h2>The planner connects decisions users usually review separately.</h2>
-          <p>Cash flow, tax, goals, insurance and investment planning are presented together so trade-offs are visible.</p>
-        </div>
-        <div className="sf-feature-grid">
-          <article className="sf-feature-card"><strong>Cash-flow summary</strong><p>Income, expenses, EMIs, existing investments and surplus.</p></article>
-          <article className="sf-feature-card"><strong>Tax comparison</strong><p>Old/new regime context, deductions and tax already paid.</p></article>
-          <article className="sf-feature-card"><strong>Goal gap analysis</strong><p>Inflation-adjusted goals and monthly SIP requirement.</p></article>
-        </div>
-        <a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Try with demo profile</a>
-      </section>
-      <FAQSection />
-    </>
-  )
+  return <><LandingHero setPath={setPath} /><TrustBar /><ConfidenceStrip /><FeatureGrid /><ComparisonSection /><SecuritySection setPath={setPath} /><AssumptionsSection /><section className="sf-section sf-product-preview"><div className="sf-section-heading"><span>Product preview</span><h2>The planner connects decisions users usually review separately.</h2><p>Cash flow, tax, goals, insurance and investment planning are presented together so trade-offs are visible.</p></div><div className="sf-feature-grid"><article className="sf-feature-card"><strong>Cash-flow summary</strong><p>Income, expenses, EMIs, existing investments and surplus.</p></article><article className="sf-feature-card"><strong>Tax comparison</strong><p>Old/new regime context, deductions and tax already paid.</p></article><article className="sf-feature-card"><strong>Goal gap analysis</strong><p>Inflation-adjusted goals and monthly SIP requirement.</p></article></div><a className="sf-primary-link" href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Try with demo profile</a></section><FAQSection /></>
 }
 
 function SiteFooter({ setPath }) {
-  const links = [
-    ['/privacy', 'Privacy'],
-    ['/terms', 'Terms'],
-    ['/disclaimer', 'Disclaimer'],
-    ['/security', 'Security'],
-  ]
+  const links = [['/privacy', 'Privacy'], ['/terms', 'Terms'], ['/disclaimer', 'Disclaimer'], ['/security', 'Security'], ['/learn', 'Learn']]
+  return <footer className="sf-footer" id="privacy"><div><strong>Privacy-first finance UX</strong><p>SmartFinly is designed to work without PAN, Aadhaar, OTP, passwords, bank account numbers, UPI IDs or brokerage credentials. Do not enter sensitive identifiers into the planner.</p></div><div><strong>Compliance boundary</strong><p>SmartFinly is an educational AI planning sample. It is not SEBI-registered investment advice, research, portfolio management, insurance broking, tax filing, lending or product execution.</p></div><div><strong>Site links</strong><p className="sf-footer-links">{links.map(([href, label]) => <a key={href} href={href} onClick={(event) => navigate(event, href, setPath)}>{label}</a>)}</p></div></footer>
+}
 
-  return (
-    <footer className="sf-footer" id="privacy">
-      <div>
-        <strong>Privacy-first finance UX</strong>
-        <p>
-          SmartFinly is designed to work without PAN, Aadhaar, OTP, passwords, bank account numbers,
-          UPI IDs or brokerage credentials. Do not enter sensitive identifiers into the planner.
-        </p>
-      </div>
-      <div>
-        <strong>Compliance boundary</strong>
-        <p>
-          SmartFinly is an educational AI planning sample. It is not SEBI-registered investment advice,
-          research, portfolio management, insurance broking, tax filing, lending or product execution.
-        </p>
-      </div>
-      <div>
-        <strong>Site links</strong>
-        <p className="sf-footer-links">
-          {links.map(([href, label]) => (
-            <a key={href} href={href} onClick={(event) => navigate(event, href, setPath)}>{label}</a>
-          ))}
-        </p>
-      </div>
-    </footer>
-  )
+function StickyCTA({ setPath }) {
+  return <div className="sf-sticky-cta"><span>Build your educational plan in minutes.</span><a href="/planner" onClick={(event) => navigate(event, '/planner', setPath)}>Start free</a></div>
 }
 
 export default function App() {
@@ -443,12 +366,7 @@ export default function App() {
   if (path === '/terms') page = <LegalPage type="terms" />
   if (path === '/disclaimer') page = <LegalPage type="disclaimer" />
   if (path === '/security') page = <LegalPage type="security" />
+  if (seoRoutes[path]) page = <SeoLandingPage page={seoRoutes[path]} setPath={setPath} />
 
-  return (
-    <div className="shell">
-      <SiteHeader path={path} setPath={setPath} />
-      {page}
-      <SiteFooter setPath={setPath} />
-    </div>
-  )
+  return <div className="shell"><SiteHeader path={path} setPath={setPath} />{page}<SiteFooter setPath={setPath} /><StickyCTA setPath={setPath} /></div>
 }
