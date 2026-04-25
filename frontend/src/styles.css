@@ -3150,3 +3150,26 @@ form > .error-block,
   }
 }
 
+
+/* ===== SmartFinly HTTP 400 input error visibility ===== */
+.err,
+.error-block,
+.api-error,
+.validation-error {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  background: linear-gradient(135deg, #5b1717, #2b1010) !important;
+  color: #fff6dc !important;
+  border: 1px solid rgba(255, 207, 126, 0.72) !important;
+  border-radius: 16px !important;
+  padding: 16px 18px !important;
+  font-weight: 900 !important;
+}
+
+.err *,
+.error-block *,
+.api-error *,
+.validation-error * {
+  color: #fff6dc !important;
+}
+

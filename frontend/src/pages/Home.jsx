@@ -526,7 +526,8 @@ export default function Home() {
       setResult(r)
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
     } catch (e) {
-      setErr(e.message)
+      const message = e?.message || 'Unable to generate plan. Please check inputs and try again.'
+      setErr(message)
     } finally {
       setBusy(false)
     }
@@ -1364,6 +1365,24 @@ function hasInvalidPayloadShape(profile) {
   return ''
 }
 
+
+
+function validateSalariedTaxInputs(profile) {
+  if (profile?.basics?.employmentType !== 'salaried') return ''
+
+  const salary = profile.salary || {}
+  const missing = []
+
+  if (!Number(salary.basicSalary) && !Number(salary.monthlyBasic)) missing.push('Basic Salary')
+  if (!Number(salary.hraReceived) && !Number(salary.monthlyHra)) missing.push('HRA received')
+  if (!Number(salary.epfContribution) && !Number(salary.monthlyEmployeeEpf)) missing.push('E-PF Contribution')
+
+  if (missing.length) {
+    return `For salaried tax calculation, please enter: ${missing.join(', ')}.`
+  }
+
+  return ''
+}
 
 function validateTab(tab, profile) {
   switch (tab) {

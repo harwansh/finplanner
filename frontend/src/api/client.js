@@ -1,3 +1,26 @@
+
+function parseApiError(status, text) {
+  let message = text || `Request failed with status ${status}`
+  try {
+    const parsed = JSON.parse(text)
+    if (parsed?.error) message = parsed.error
+    if (parsed?.message) message = parsed.message
+  } catch {
+    // keep raw text
+  }
+
+  if (status === 400) {
+    return `Please check your inputs: ${message}`
+  }
+  if (status === 502 || status === 504) {
+    return 'Backend is temporarily unavailable. Please redeploy and check CloudWatch logs.'
+  }
+  if (status >= 500) {
+    return `Server error: ${message}`
+  }
+  return message
+}
+
 const API_URL = import.meta.env.VITE_API_URL
 
 export async function analyze(profile) {
