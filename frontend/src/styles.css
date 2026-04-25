@@ -3173,3 +3173,110 @@ form > .error-block,
   color: #fff6dc !important;
 }
 
+
+/* ===== SmartFinly children panel + validation navigation polish ===== */
+
+/* Children section was still light-on-light after dark theme. */
+.children-card,
+.children-box,
+.kids-card,
+.kids-box,
+.child-card,
+.child-row,
+.child-panel,
+.children-section,
+.kids-section,
+[data-section="children"],
+[class*="children"],
+[class*="kids"] {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025)),
+    rgba(14, 15, 20, 0.96) !important;
+  color: #fff7df !important;
+  border-color: rgba(247, 218, 132, 0.24) !important;
+}
+
+.children-card *,
+.children-box *,
+.kids-card *,
+.kids-box *,
+.child-card *,
+.child-row *,
+.child-panel *,
+.children-section *,
+.kids-section *,
+[data-section="children"] *,
+[class*="children"] *,
+[class*="kids"] * {
+  color: #fff7df !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+}
+
+.children-card input,
+.children-box input,
+.kids-card input,
+.kids-box input,
+.child-card input,
+.child-row input,
+.child-panel input,
+.children-section input,
+.kids-section input,
+[data-section="children"] input,
+[class*="children"] input,
+[class*="kids"] input {
+  background: rgba(255,255,255,0.075) !important;
+  border: 1px solid rgba(255,255,255,0.20) !important;
+  color: #ffffff !important;
+  font-weight: 850 !important;
+}
+
+.children-card button,
+.children-box button,
+.kids-card button,
+.kids-box button,
+.child-card button,
+.child-row button,
+.child-panel button,
+.children-section button,
+.kids-section button,
+[data-section="children"] button,
+[class*="children"] button,
+[class*="kids"] button {
+  color: #fff1a8 !important;
+}
+
+/* Error should clearly tell user this is a blocking required-field issue. */
+.err,
+.error-block,
+.validation-error,
+.api-error {
+  position: relative;
+  color: #fff6dc !important;
+  background:
+    linear-gradient(135deg, rgba(112, 26, 26, 0.98), rgba(45, 12, 12, 0.98)) !important;
+  border: 1px solid rgba(255, 207, 126, 0.82) !important;
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.45) !important;
+}
+
+.err::before,
+.error-block::before,
+.validation-error::before,
+.api-error::before {
+  content: "Fix required fields";
+  display: block;
+  margin-bottom: 6px;
+  color: #fff1a8;
+  font-size: 13px;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+input[aria-invalid="true"],
+select[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border-color: rgba(255, 133, 105, 0.9) !important;
+  box-shadow: 0 0 0 4px rgba(255, 133, 105, 0.16) !important;
+}
+

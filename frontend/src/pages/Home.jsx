@@ -502,7 +502,10 @@ export default function Home() {
     const validationError = validate(data)
     if (validationError) {
       setErr(validationError)
+      const errorTab = getTabForValidationError(validationError)
+      if (errorTab) setActiveTab(errorTab)
       setResult(null)
+      scrollToFirstInvalidField()
       return
     }
 
@@ -528,6 +531,9 @@ export default function Home() {
     } catch (e) {
       const message = e?.message || 'Unable to generate plan. Please check inputs and try again.'
       setErr(message)
+      const errorTab = getTabForValidationError(message)
+      if (errorTab) setActiveTab(errorTab)
+      scrollToFirstInvalidField()
     } finally {
       setBusy(false)
     }
@@ -571,11 +577,11 @@ export default function Home() {
           <Section title="1. Profile">
             <Row>
               <Field label="Current age" required>
-                <input type="number" min="18" max="100" value={data.basics.age}
+                <input type="number" min="18" max="100" value={data.basics.age} aria-invalid={!data.basics.age}
                   onChange={e=>set('basics','age',num(e.target.value))} required />
               </Field>
               <Field label="Desired retirement age" required>
-                <input type="number" min="35" max="100" value={data.basics.desiredRetirementAge}
+                <input type="number" min="35" max="100" value={data.basics.desiredRetirementAge} aria-invalid={!data.basics.desiredRetirementAge || Number(data.basics.desiredRetirementAge) <= Number(data.basics.age)}
                   onChange={e=>set('basics','desiredRetirementAge',num(e.target.value))} required />
               </Field>
               <Field label="Country" required>
@@ -684,7 +690,7 @@ export default function Home() {
             <Section title="3. Cash-flow">
               <Row>
                 <Field label="Monthly income after tax" required hint="Example: 2,00,000">
-                  <MoneyInput value={data.income.monthlyAfterTax} onChange={v=>set('income','monthlyAfterTax',v)} required />
+                  <MoneyInput value={data.income.monthlyAfterTax} aria-invalid={!data.income.monthlyAfterTax} onChange={v=>set('income','monthlyAfterTax',v)} required />
                 </Field>
                 <Field label="Annual bonus / variable">
                   <MoneyInput value={data.income.bonusAnnual} onChange={v=>set('income','bonusAnnual',v)} />
@@ -1366,6 +1372,76 @@ function hasInvalidPayloadShape(profile) {
 }
 
 
+
+
+function getTabForValidationError(message = '') {
+  const text = String(message).toLowerCase()
+
+  if (
+    text.includes('current age') ||
+    text.includes('retirement age') ||
+    text.includes('country') ||
+    text.includes('city') ||
+    text.includes('marital') ||
+    text.includes('employment') ||
+    text.includes('parent') ||
+    text.includes('child')
+  ) {
+    return 'profile'
+  }
+
+  if (
+    text.includes('monthly after-tax') ||
+    text.includes('income') ||
+    text.includes('salary') ||
+    text.includes('basic salary') ||
+    text.includes('hra') ||
+    text.includes('e-pf') ||
+    text.includes('epf contribution') ||
+    text.includes('cash-flow') ||
+    text.includes('expense')
+  ) {
+    return 'salary'
+  }
+
+  if (text.includes('liabilit') || text.includes('loan') || text.includes('emi')) {
+    return 'liabilities'
+  }
+
+  if (text.includes('insurance') || text.includes('cover')) {
+    return 'insurance'
+  }
+
+  if (text.includes('investment') || text.includes('sip') || text.includes('nps') || text.includes('epf')) {
+    return 'investments'
+  }
+
+  if (text.includes('goal')) {
+    return 'goals'
+  }
+
+  if (text.includes('tax') || text.includes('80c') || text.includes('80d') || text.includes('80ee')) {
+    return 'tax'
+  }
+
+  return ''
+}
+
+function scrollToFirstInvalidField() {
+  window.setTimeout(() => {
+    const invalid = document.querySelector('[aria-invalid="true"], input:invalid, select:invalid, textarea:invalid')
+    if (invalid && typeof invalid.focus === 'function') {
+      invalid.focus({ preventScroll: true })
+      invalid.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
+    const error = document.querySelector('.err, .error-block, .validation-error, .api-error')
+    if (error) {
+      error.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, 80)
+}
 
 function validateSalariedTaxInputs(profile) {
   if (profile?.basics?.employmentType !== 'salaried') return ''
