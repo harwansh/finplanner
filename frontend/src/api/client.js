@@ -1,4 +1,3 @@
-
 function parseApiError(status, text) {
   let message = text || `Request failed with status ${status}`
   try {
@@ -12,6 +11,9 @@ function parseApiError(status, text) {
   if (status === 400) {
     return `Please check your inputs: ${message}`
   }
+  if (status === 401 || status === 403) {
+    return 'Please sign in again before generating your plan.'
+  }
   if (status === 502 || status === 504) {
     return 'Backend is temporarily unavailable. Please redeploy and check CloudWatch logs.'
   }
@@ -23,10 +25,22 @@ function parseApiError(status, text) {
 
 const API_URL = import.meta.env.VITE_API_URL
 
-export async function analyze(profile) {
+export async function analyze(profile, accessToken = '') {
+  if (!API_URL) {
+    throw new Error('Missing VITE_API_URL. Please configure the frontend environment.')
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+  }
+
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`
+  }
+
   const res = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(profile)
   })
 
@@ -39,7 +53,8 @@ export async function analyze(profile) {
     const validationErrors = Array.isArray(payload.validationErrors)
       ? `\n- ${payload.validationErrors.join('\n- ')}`
       : ''
-    throw new Error(`${payload.error || `POST ${res.status}`}${validationErrors}`)
+    const message = payload.error || payload.message || parseApiError(res.status, JSON.stringify(payload))
+    throw new Error(`${message}${validationErrors}`)
   }
 
   return payload
