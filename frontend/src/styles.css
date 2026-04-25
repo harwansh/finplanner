@@ -2331,3 +2331,578 @@ form > .error-block,
   color: #fff6dc !important;
 }
 
+
+/* ===== SmartFinly Lead Designer Polish v1 =====
+   Visual-only patch. No planner, tax, insurance, AI, or validation logic changed. */
+
+/* 1) Design tokens tuned for premium black/gold readability */
+:root {
+  --sf-polish-bg: #07080b;
+  --sf-polish-surface: rgba(18, 19, 26, 0.92);
+  --sf-polish-surface-2: rgba(28, 29, 38, 0.84);
+  --sf-polish-surface-3: rgba(255, 255, 255, 0.055);
+  --sf-polish-border: rgba(247, 218, 132, 0.24);
+  --sf-polish-border-strong: rgba(247, 218, 132, 0.48);
+  --sf-polish-gold: #f4d56f;
+  --sf-polish-gold-2: #fff1a8;
+  --sf-polish-cream: #fff7df;
+  --sf-polish-muted: #d8ceb3;
+  --sf-polish-muted-2: #a99f87;
+  --sf-polish-green: #9ef59b;
+  --sf-polish-blue: #9de8ff;
+  --sf-polish-red: #ffb0a3;
+  --sf-polish-shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
+  --sf-polish-radius-xl: 30px;
+  --sf-polish-radius-lg: 22px;
+  --sf-polish-radius-md: 16px;
+}
+
+/* 2) Page background with subtle dashboard depth */
+html,
+body,
+#root {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(244, 213, 111, 0.105), transparent 30rem),
+    radial-gradient(circle at 90% 8%, rgba(157, 232, 255, 0.055), transparent 28rem),
+    radial-gradient(circle at 50% 110%, rgba(244, 213, 111, 0.055), transparent 36rem),
+    linear-gradient(180deg, #06070a 0%, #0b0d12 48%, #07080b 100%) !important;
+  color: var(--sf-polish-cream) !important;
+}
+
+/* 3) Main content spacing and max width */
+main,
+.main,
+.shell main,
+.app main {
+  max-width: 1240px !important;
+  margin-inline: auto !important;
+}
+
+.shell,
+.app,
+.app-shell,
+.home-shell {
+  color: var(--sf-polish-cream) !important;
+}
+
+/* 4) Sticky premium header */
+header,
+.site-header,
+.topbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 50 !important;
+  min-height: 68px;
+  background:
+    linear-gradient(90deg, rgba(6, 7, 10, 0.96), rgba(17, 18, 25, 0.94)),
+    radial-gradient(circle at 80% 0%, rgba(244, 213, 111, 0.14), transparent 18rem) !important;
+  border-bottom: 1px solid rgba(247, 218, 132, 0.18) !important;
+  backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.32) !important;
+}
+
+header::after,
+.site-header::after,
+.topbar::after {
+  content: "";
+  display: block;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(247, 218, 132, 0.55), transparent);
+}
+
+.brand,
+.logo,
+header h1,
+header .brand {
+  color: var(--sf-polish-gold-2) !important;
+  font-weight: 900 !important;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 28px rgba(244, 213, 111, 0.18);
+}
+
+/* 5) Cards and sections */
+.card,
+.section,
+.chart-card,
+.kpi,
+.mini-kpi,
+.compact-card,
+.goal-summary-row,
+.slab-table-wrap,
+.markdown table {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.058), rgba(255, 255, 255, 0.024)),
+    var(--sf-polish-surface) !important;
+  color: var(--sf-polish-cream) !important;
+  border: 1px solid var(--sf-polish-border) !important;
+  border-radius: var(--sf-polish-radius-lg) !important;
+  box-shadow: var(--sf-polish-shadow) !important;
+}
+
+.card:hover,
+.chart-card:hover,
+.kpi:hover,
+.compact-card:hover {
+  border-color: rgba(247, 218, 132, 0.34) !important;
+}
+
+/* 6) Hero card: stronger designer-grade treatment */
+.hero-card,
+.card:first-of-type {
+  min-height: 220px;
+  background:
+    radial-gradient(circle at 82% 14%, rgba(244, 213, 111, 0.25), transparent 18rem),
+    radial-gradient(circle at 12% 0%, rgba(157, 232, 255, 0.08), transparent 14rem),
+    linear-gradient(135deg, rgba(22, 23, 31, 0.98), rgba(7, 8, 11, 0.98)) !important;
+  border: 1px solid rgba(247, 218, 132, 0.42) !important;
+  border-radius: var(--sf-polish-radius-xl) !important;
+  overflow: hidden;
+  position: relative;
+}
+
+.hero-card::before,
+.card:first-of-type::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  background:
+    linear-gradient(120deg, rgba(255,255,255,0.12), transparent 28%, transparent 74%, rgba(244,213,111,0.16));
+  opacity: 0.55;
+}
+
+.hero-card h1,
+.hero-card h2,
+.card:first-of-type h1,
+.card:first-of-type h2 {
+  color: var(--sf-polish-gold-2) !important;
+  font-size: clamp(36px, 5vw, 64px) !important;
+  line-height: 0.98 !important;
+  letter-spacing: -0.045em !important;
+  text-shadow: 0 10px 36px rgba(0, 0, 0, 0.34);
+}
+
+.hero-card p,
+.hero-card .muted,
+.card:first-of-type p,
+.card:first-of-type .muted {
+  color: var(--sf-polish-muted) !important;
+  font-size: 17px !important;
+  max-width: 780px;
+}
+
+/* 7) Section headers */
+.card.section {
+  padding-top: 30px !important;
+}
+
+.card.section::before {
+  width: 5px !important;
+  top: 28px !important;
+  bottom: 28px !important;
+  background: linear-gradient(180deg, var(--sf-polish-gold-2), var(--sf-polish-gold), transparent) !important;
+  box-shadow: 0 0 24px rgba(244, 213, 111, 0.30);
+}
+
+.card.section h3 {
+  color: var(--sf-polish-gold-2) !important;
+  font-size: clamp(26px, 3vw, 38px) !important;
+  letter-spacing: -0.035em !important;
+  margin-bottom: 22px !important;
+}
+
+/* 8) Tabs: clearer states and better wrapping */
+.tabs-card {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.018)),
+    rgba(10, 11, 16, 0.88) !important;
+  border: 1px solid rgba(247, 218, 132, 0.24) !important;
+  border-radius: 32px !important;
+  padding: 14px !important;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tabs {
+  display: flex !important;
+  gap: 12px !important;
+  min-width: max-content;
+}
+
+.tab {
+  min-height: 58px !important;
+  padding: 10px 18px !important;
+  border-radius: 999px !important;
+  color: var(--sf-polish-muted) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  font-weight: 850 !important;
+  white-space: nowrap;
+}
+
+.tab span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  margin-right: 8px;
+  background: rgba(244, 213, 111, 0.13) !important;
+  color: var(--sf-polish-gold-2) !important;
+  border: 1px solid rgba(244, 213, 111, 0.20);
+}
+
+.tab.active {
+  background:
+    linear-gradient(180deg, rgba(244, 213, 111, 0.26), rgba(244, 213, 111, 0.09)),
+    rgba(255, 255, 255, 0.055) !important;
+  color: var(--sf-polish-gold-2) !important;
+  border-color: var(--sf-polish-border-strong) !important;
+  box-shadow:
+    0 0 0 4px rgba(244, 213, 111, 0.10),
+    0 18px 36px rgba(0, 0, 0, 0.28) !important;
+}
+
+.tab.done {
+  color: var(--sf-polish-green) !important;
+  border-color: rgba(158, 245, 155, 0.24) !important;
+}
+
+/* 9) Forms: premium but readable */
+.field span,
+label {
+  color: #fff0be !important;
+  font-weight: 850 !important;
+}
+
+.field small,
+.helper-text,
+.hint,
+.small,
+.muted {
+  color: var(--sf-polish-muted) !important;
+  opacity: 1 !important;
+}
+
+input,
+select,
+textarea,
+.money-input input {
+  min-height: 50px !important;
+  color: #fff !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.078), rgba(255,255,255,0.04)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 16px !important;
+  font-weight: 800 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06) !important;
+}
+
+select {
+  color-scheme: dark;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(255, 247, 223, 0.55) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(247, 218, 132, 0.62) !important;
+  box-shadow:
+    0 0 0 4px rgba(244, 213, 111, 0.12),
+    inset 0 1px 0 rgba(255,255,255,0.08) !important;
+}
+
+.money-input .currency-prefix,
+.currency-prefix {
+  color: var(--sf-polish-gold-2) !important;
+  font-weight: 950 !important;
+}
+
+.required {
+  color: #ffe071 !important;
+  font-weight: 950 !important;
+}
+
+/* 10) Buttons */
+button.primary,
+.primary {
+  min-height: 50px;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, #fff3a8, #f4d56f 52%, #b98a2c) !important;
+  color: #08090b !important;
+  border: 0 !important;
+  font-weight: 950 !important;
+  box-shadow:
+    0 20px 40px rgba(244, 213, 111, 0.20),
+    inset 0 1px 0 rgba(255,255,255,0.5) !important;
+}
+
+button.primary:hover,
+.primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 26px 54px rgba(244, 213, 111, 0.26),
+    inset 0 1px 0 rgba(255,255,255,0.55) !important;
+}
+
+button.link,
+.link {
+  color: var(--sf-polish-gold-2) !important;
+  font-weight: 900 !important;
+}
+
+/* 11) Preview cards fixed for dark theme */
+.cashflow-preview,
+.cashflow-preview.success,
+.cashflow-preview.danger,
+.section-note,
+.auto-goal-box {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025)),
+    rgba(13, 14, 19, 0.94) !important;
+  color: var(--sf-polish-cream) !important;
+  border: 1px solid rgba(247, 218, 132, 0.22) !important;
+  border-radius: 18px !important;
+}
+
+.cashflow-preview *,
+.section-note *,
+.auto-goal-box * {
+  color: var(--sf-polish-cream) !important;
+  opacity: 1 !important;
+}
+
+.cashflow-title,
+.chart-title,
+.goal-box-title {
+  color: var(--sf-polish-gold-2) !important;
+  font-weight: 950 !important;
+}
+
+/* 12) KPI cards and charts */
+.kpi {
+  padding: 18px !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi::after {
+  content: "";
+  position: absolute;
+  right: -36px;
+  top: -36px;
+  width: 110px;
+  height: 110px;
+  border-radius: 999px;
+  background: rgba(244, 213, 111, 0.10);
+  pointer-events: none;
+}
+
+.kpi-label,
+.mini-kpi-label,
+.chart-subtitle {
+  color: var(--sf-polish-muted) !important;
+  font-weight: 800 !important;
+}
+
+.kpi-value,
+.mini-kpi-value {
+  color: var(--sf-polish-cream) !important;
+  font-weight: 950 !important;
+}
+
+.kpi.big {
+  background:
+    radial-gradient(circle at 90% 10%, rgba(244, 213, 111, 0.28), transparent 9rem),
+    linear-gradient(135deg, #15171f, #211908) !important;
+}
+
+.metric-track {
+  height: 12px !important;
+  background: rgba(255, 255, 255, 0.11) !important;
+  border-radius: 999px !important;
+}
+
+.metric-fill {
+  background: linear-gradient(90deg, #fff3a8, #f4d56f) !important;
+  box-shadow: 0 0 24px rgba(244, 213, 111, 0.30);
+}
+
+.metric-fill.accent {
+  background: linear-gradient(90deg, var(--sf-polish-blue), var(--sf-polish-green)) !important;
+}
+
+.metric-fill.danger {
+  background: linear-gradient(90deg, #ff8f81, #ffc18a) !important;
+}
+
+.visual-grid {
+  gap: 24px !important;
+}
+
+.chart-card {
+  padding: 24px !important;
+  min-height: 290px;
+}
+
+.chart-card-head {
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(247, 218, 132, 0.16);
+}
+
+/* 13) Markdown/report: professional readable report */
+.markdown {
+  overflow-x: auto;
+}
+
+.markdown h1 {
+  font-size: clamp(32px, 4vw, 52px) !important;
+  line-height: 1.02 !important;
+  color: var(--sf-polish-gold-2) !important;
+  border-bottom: 1px solid rgba(247, 218, 132, 0.24);
+  padding-bottom: 16px;
+}
+
+.markdown h2 {
+  color: var(--sf-polish-gold-2) !important;
+  margin-top: 32px !important;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(244, 213, 111, 0.08);
+  border: 1px solid rgba(244, 213, 111, 0.16);
+}
+
+.markdown h3,
+.markdown h4,
+.markdown strong {
+  color: #fff0be !important;
+}
+
+.markdown p,
+.markdown li,
+.markdown td,
+.markdown span,
+.markdown div {
+  color: var(--sf-polish-cream) !important;
+  line-height: 1.62 !important;
+}
+
+.markdown blockquote {
+  border-left: 4px solid var(--sf-polish-gold) !important;
+  background: rgba(244, 213, 111, 0.08) !important;
+  padding: 14px 16px !important;
+  border-radius: 0 16px 16px 0;
+  color: #fff1c7 !important;
+}
+
+.markdown table,
+.slab-table-wrap {
+  min-width: 720px;
+}
+
+.markdown th,
+.markdown td {
+  padding: 12px 14px !important;
+  border-bottom: 1px solid rgba(255,255,255,0.07) !important;
+}
+
+.markdown th,
+.slab-title {
+  color: var(--sf-polish-gold-2) !important;
+  background: rgba(244, 213, 111, 0.12) !important;
+}
+
+.markdown tr:nth-child(even) td {
+  background: rgba(255,255,255,0.028) !important;
+}
+
+/* 14) Validation / errors: maximum readability */
+.err,
+.error-block,
+form > .err,
+form > .error-block,
+[role="alert"],
+.validation-error,
+.form-error,
+.alert,
+.alert-error {
+  background: linear-gradient(135deg, #5c1818, #2a1111) !important;
+  color: #fff6dc !important;
+  border: 1px solid rgba(255, 207, 126, 0.72) !important;
+  border-radius: 18px !important;
+  padding: 16px 18px !important;
+  margin: 18px 0 !important;
+  font-weight: 900 !important;
+  opacity: 1 !important;
+  text-shadow: none !important;
+  box-shadow: 0 18px 46px rgba(0,0,0,0.42) !important;
+}
+
+.err *,
+.error-block *,
+[role="alert"] *,
+.validation-error *,
+.form-error *,
+.alert *,
+.alert-error * {
+  color: #fff6dc !important;
+  opacity: 1 !important;
+}
+
+/* 15) Responsive fixes */
+@media (max-width: 980px) {
+  .row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .visual-grid,
+  .kpi-grid,
+  .review-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .tabs-card {
+    border-radius: 22px !important;
+  }
+
+  .tab {
+    min-height: 50px !important;
+    padding: 8px 14px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  main,
+  .main,
+  .shell main {
+    padding-inline: 12px !important;
+  }
+
+  .hero-card,
+  .card:first-of-type {
+    min-height: 180px;
+    border-radius: 22px !important;
+  }
+
+  .card,
+  .section,
+  .chart-card {
+    border-radius: 18px !important;
+  }
+
+  .card.section h3 {
+    font-size: 28px !important;
+  }
+
+  input,
+  select,
+  textarea,
+  .money-input input {
+    min-height: 48px !important;
+  }
+}
+
