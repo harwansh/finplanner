@@ -905,10 +905,236 @@ def call_bedrock_notes(profile, summary, plan):
     return response["output"]["message"]["content"][0]["text"].strip()
 
 
+
+AI_PLANNER_MODE = os.environ.get("AI_PLANNER_MODE", "true").lower() == "true"
+
+
+def _json_from_text(text):
+    if not text:
+        return None
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except Exception:
+            return None
+    return None
+
+
+def _ai_first_system_prompt():
+    return """You are SmartFinly AI Planner, an India-focused CFP-style educational financial planning engine.
+
+Your job:
+- Create the financial plan using AI reasoning.
+- Use calculated facts as guardrails, not as the full answer.
+- Do not invent user inputs.
+- Do not recommend total new monthly investments above remaining surplus.
+- Do not claim guaranteed returns.
+- Do not claim SEBI/RBI registration.
+- Output must be valid JSON only.
+
+Return this exact JSON shape:
+{
+  "summary": {
+    "aiMode": true,
+    "oneLineDiagnosis": "...",
+    "topPriorities": ["...", "..."],
+    "riskProfile": {"label": "Conservative|Balanced|Growth", "reason": "...", "equity": 0, "debt": 0, "gold": 0},
+    "warnings": ["..."]
+  },
+  "plan": {
+    "goals": [
+      {
+        "name": "...",
+        "priority": "Critical|High|Medium|Low",
+        "timeline": "...",
+        "years": 0,
+        "presentCost": 0,
+        "futureCost": 0,
+        "existingAllocation": 0,
+        "gap": 0,
+        "targetMonthlyInvestment": 0,
+        "recommendedMonthlyInvestment": 0,
+        "fundingStatus": "Fully funded|Partially funded|Not funded",
+        "notes": "..."
+      }
+    ],
+    "insurance": {
+      "existingLifeCover": 0,
+      "requiredLifeCover": 0,
+      "lifeCoverGap": 0,
+      "existingHealthCover": 0,
+      "requiredHealthCover": 0,
+      "healthCoverGap": 0,
+      "priority": "Low|Medium|High",
+      "notes": "..."
+    },
+    "tax": {
+      "preferredRegime": "Old|New",
+      "notes": "..."
+    },
+    "actionPlan": ["...", "..."]
+  },
+  "report": "Markdown report with sections: AI Diagnosis, Cash-flow, Goals, Tax, Insurance, Investment Mapping, Action Plan, Compliance Note"
+}
+"""
+
+
+def _invoke_ai_json(profile, calculated):
+    payload = {
+        "profile": profile,
+        "calculatedGuardrails": calculated,
+        "nonNegotiableRules": {
+            "maxNewMonthlyInvestment": calculated.get("summary", {}).get("remainingSurplusAfterExistingInvestments", 0),
+            "monthlySurplus": calculated.get("summary", {}).get("monthlySurplus", 0),
+            "currentMonthlyInvestments": calculated.get("summary", {}).get("currentMonthlyInvestments", 0),
+            "taxFacts": calculated.get("summary", {}).get("tax", {}),
+            "insuranceFacts": calculated.get("plan", {}).get("insurance", {}),
+            "goalFacts": calculated.get("plan", {}).get("goals", []),
+            "fyLabel": "FY 2026-27"
+        }
+    }
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "text": _ai_first_system_prompt()
+                    + "\n\nCreate SmartFinly AI planner output for this user. Return JSON only.\n\n"
+                    + json.dumps(payload, ensure_ascii=False)
+                }
+            ],
+        }
+    ]
+
+    response = bedrock.converse(
+        modelId=MODEL_ID,
+        messages=messages,
+        inferenceConfig={"maxTokens": 3500, "temperature": 0.2, "topP": 0.9},
+    )
+    text = response["output"]["message"]["content"][0]["text"]
+    return _json_from_text(text)
+
+
+def _num_for_guard(value):
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _apply_ai_guardrails(ai_body, calculated):
+    """AI remains the planner; backend only enforces hard safety constraints."""
+    if not isinstance(ai_body, dict):
+        return calculated
+
+    calc_summary = calculated.get("summary", {}) or {}
+    calc_plan = calculated.get("plan", {}) or {}
+    max_new_sip = max(0, _num_for_guard(calc_summary.get("remainingSurplusAfterExistingInvestments")))
+
+    ai_summary = ai_body.setdefault("summary", {})
+    ai_plan = ai_body.setdefault("plan", {})
+
+    merged_summary = dict(calc_summary)
+    merged_summary.update(ai_summary)
+    merged_summary["aiMode"] = True
+
+    # Preserve factual numbers for charts and hard affordability checks.
+    for key in [
+        "monthlyIncome",
+        "monthlyExpenses",
+        "monthlySurplus",
+        "currentMonthlyInvestments",
+        "remainingSurplusAfterExistingInvestments",
+        "netWorth",
+        "tax",
+    ]:
+        if key in calc_summary:
+            merged_summary[key] = calc_summary[key]
+
+    merged_summary["remainingSurplusAfterExistingInvestments"] = max_new_sip
+    ai_body["summary"] = merged_summary
+
+    goals = ai_plan.get("goals")
+    if not isinstance(goals, list) or not goals:
+        goals = calc_plan.get("goals", [])
+
+    total_requested = sum(_num_for_guard(g.get("recommendedMonthlyInvestment")) for g in goals if isinstance(g, dict))
+    if total_requested > max_new_sip and total_requested > 0:
+        scale = max_new_sip / total_requested
+        for g in goals:
+            if not isinstance(g, dict):
+                continue
+            g["recommendedMonthlyInvestment"] = round(_num_for_guard(g.get("recommendedMonthlyInvestment")) * scale, 2)
+            target = _num_for_guard(g.get("targetMonthlyInvestment"))
+            rec = _num_for_guard(g.get("recommendedMonthlyInvestment"))
+            if rec <= 0:
+                g["fundingStatus"] = "Not funded"
+            elif target > 0 and rec >= target:
+                g["fundingStatus"] = "Fully funded"
+            else:
+                g["fundingStatus"] = "Partially funded"
+
+    ai_plan["goals"] = goals
+
+    calc_insurance = calc_plan.get("insurance", {}) or {}
+    ai_insurance = ai_plan.get("insurance", {}) if isinstance(ai_plan.get("insurance"), dict) else {}
+    merged_insurance = dict(calc_insurance)
+    for key in ["priority", "notes"]:
+        if key in ai_insurance:
+            merged_insurance[key] = ai_insurance[key]
+    ai_plan["insurance"] = merged_insurance
+
+    ai_tax = ai_plan.get("tax", {}) if isinstance(ai_plan.get("tax"), dict) else {}
+    ai_plan["tax"] = {
+        "preferredRegime": calc_summary.get("tax", {}).get("preferredRegime"),
+        "facts": calc_summary.get("tax", {}),
+        "notes": ai_tax.get("notes", ""),
+    }
+
+    ai_body["plan"] = ai_plan
+
+    report = ai_body.get("report")
+    if not isinstance(report, str) or len(report.strip()) < 50:
+        report = calculated.get("report", "")
+
+    ai_body["report"] = (
+        report
+        + "\n\n---\n"
+        + "**SmartFinly AI Mode:** Recommendations are AI-generated and then checked against hard affordability, tax, insurance and compliance guardrails. Educational use only, not registered financial advice."
+    )
+
+    return ai_body
+
+
+def ai_first_output(profile, calculated):
+    if not AI_PLANNER_MODE:
+        return calculated
+    try:
+        ai_body = _invoke_ai_json(profile, calculated)
+        return _apply_ai_guardrails(ai_body, calculated)
+    except Exception as exc:
+        print("AI-first planner failed; falling back to calculated plan:", str(exc))
+        fallback = dict(calculated)
+        fallback["aiModeError"] = str(exc)
+        return fallback
+
+
+
 def handler(event, context):
     method = event.get("requestContext", {}).get("http", {}).get("method") or event.get("httpMethod")
     if method == "OPTIONS":
-        return respond(200, {})
+        response_body = {}
+        response_body = ai_first_output(profile, response_body)
+        return respond(200, response_body)
     try:
         body = json.loads(event.get("body") or "{}")
     except json.JSONDecodeError:
