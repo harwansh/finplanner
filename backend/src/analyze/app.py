@@ -517,24 +517,62 @@ def compute_tax(profile):
     basics = profile.get("basics", {}) or {}
     tax = profile.get("tax", {}) or {}
 
-    basic_annual = _num(salary.get("monthlyBasic")) * 12
-    hra_received = _num(salary.get("monthlyHra")) * 12
-    lta_received = _num(salary.get("monthlyLta")) * 12
-    special_allowance = _num(salary.get("monthlySpecialAllowance")) * 12
-    monthly_bonus = _num(salary.get("monthlyBonus")) * 12
-    employer_nps = _num(salary.get("monthlyEmployerNps")) * 12
-    employee_epf = _num(salary.get("monthlyEmployeeEpf")) * 12
-    salary_professional_tax = _num(salary.get("monthlyProfessionalTax")) * 12
-    rent_paid = _num(salary.get("rentPaidMonthly")) * 12
-    annual_gross_override = _num(salary.get("annualGross"))
+    def annual_value(*keys, monthly_fallback=False):
+        for key in keys:
+            value = _num(salary.get(key))
+            if value:
+                return value * 12 if monthly_fallback else value
+        return 0
 
+    def annual_from_monthly_or_annual(annual_key, monthly_key):
+        annual = _num(salary.get(annual_key))
+        if annual:
+            return annual
+        return _num(salary.get(monthly_key)) * 12
+
+    # New annual salary fields. Existing monthly fields are kept as fallback.
+    basic_salary = annual_from_monthly_or_annual("basicSalary", "monthlyBasic")
+    hra_received = annual_from_monthly_or_annual("hraReceived", "monthlyHra")
+    lta = annual_from_monthly_or_annual("lta", "monthlyLta")
+    flexible_comp_plan = _num(salary.get("flexibleCompPlan")) or _num(salary.get("monthlySpecialAllowance")) * 12
+    bonus_variable = _num(salary.get("bonusVariablePay")) or _num(salary.get("monthlyBonus")) * 12
+    nps_employer = _num(salary.get("npsEmployer")) or _num(salary.get("monthlyEmployerNps")) * 12
+    epf_contribution = _num(salary.get("epfContribution")) or _num(salary.get("monthlyEmployeeEpf")) * 12
+    prof_tax = _num(salary.get("profTax")) or _num(salary.get("monthlyProfessionalTax")) * 12
+
+    telephone_reimbursement = _num(salary.get("telephoneReimbursement"))
+    internet_allowance = _num(salary.get("internetAllowance")) or _num(salary.get("internet"))
+    meal_allowance = _num(salary.get("meal"))
+    leave_encashment = _num(salary.get("leaveEncashment"))
+    superannuation = _num(salary.get("superannuation"))
+    shift_allowance = _num(salary.get("shiftAllowance"))
+    on_call_allowance = _num(salary.get("onCallAllowance"))
+    team_party = _num(salary.get("teamParty"))
+    awards_non_cash = _num(salary.get("awardsNonCashTaxable"))
+    labour_welfare_fund = _num(salary.get("labourWelfareFund"))
+    notice_recovery = _num(salary.get("noticeRecovery"))
+    income_tax_paid_salary = _num(salary.get("incomeTax"))
+    nps_employee = _num(salary.get("npsEmployee")) or _num(tax.get("nps80CCD1B"))
+    gross_deductions_input = _num(salary.get("grossDeductions"))
+    net_salary = _num(salary.get("netSalary"))
+
+    # Prefer explicit annual gross earning, else sum salary components, else fallback income.
     salary_components_total = (
-        basic_annual
+        basic_salary
         + hra_received
-        + lta_received
-        + special_allowance
-        + monthly_bonus
-        + employer_nps
+        + lta
+        + flexible_comp_plan
+        + bonus_variable
+        + nps_employer
+        + telephone_reimbursement
+        + internet_allowance
+        + meal_allowance
+        + leave_encashment
+        + superannuation
+        + shift_allowance
+        + on_call_allowance
+        + team_party
+        + awards_non_cash
     )
 
     fallback_income = (
@@ -542,66 +580,121 @@ def compute_tax(profile):
         + _num(income.get("bonusAnnual"))
     )
 
-    gross_income = annual_gross_override or salary_components_total or fallback_income
-    gross_income += _num(tax.get("otherAnnualIncome"))
+    gross_salary = _num(salary.get("grossEarning")) or _num(salary.get("annualGross")) or salary_components_total or fallback_income
+    other_income = _num(tax.get("otherAnnualIncome"))
+    savings_interest = _num(tax.get("interest80TTA_TTB"))
+    capital_gain = _num(tax.get("capitalGain"))
+    gross_total_income_before_deductions = gross_salary + other_income + capital_gain
 
-    standard_old = 50000
-    standard_new = 75000
-
+    # HRA exemption = minimum of actual HRA, rent paid - 10% basic, 50%/40% basic.
+    rent_paid = _num(salary.get("rentPaid")) or _num(salary.get("rentPaidMonthly")) * 12
     city_type = basics.get("cityTier")
-    metro_ratio = 0.50 if city_type in {"Metro", "Tier 1"} else 0.40
+    basic_ratio = 0.50 if city_type in {"Metro", "Tier 1"} else 0.40
     auto_hra_exemption = 0
-    if hra_received > 0 and basic_annual > 0 and rent_paid > 0:
+    if hra_received > 0 and basic_salary > 0 and rent_paid > 0:
         auto_hra_exemption = max(
             0,
             min(
                 hra_received,
-                max(0, rent_paid - (0.10 * basic_annual)),
-                metro_ratio * basic_annual,
+                max(0, rent_paid - (0.10 * basic_salary)),
+                basic_ratio * basic_salary,
             ),
         )
 
-    hra = _num(tax.get("hraExemption")) or auto_hra_exemption
-    professional_tax = _num(tax.get("professionalTax")) + salary_professional_tax
+    hra_exemption = _num(tax.get("hraExemption")) or auto_hra_exemption
 
-    deduction_80c = min(150000, _num(tax.get("deduction80C")) + employee_epf)
-    deduction_80ccd_1b = min(50000, _num(tax.get("nps80CCD1B")))
-    deduction_80d = _num(tax.get("health80D"))
+    # Allowance/reimbursement exemptions, capped where common limits are used.
+    meal_exemption = min(meal_allowance, 26400)
+    telephone_exemption = min(telephone_reimbursement, 24000)
+    internet_exemption = min(internet_allowance, 24000)
+    leave_encashment_exemption = min(leave_encashment, 300000)
+
+    standard_old = 50000
+    standard_new = 75000
+
+    taxable_salary_old = max(
+        0,
+        gross_salary
+        - hra_exemption
+        - prof_tax
+        - standard_old
+        - meal_exemption
+        - telephone_exemption
+        - internet_exemption
+        - leave_encashment_exemption
+    )
+
+    taxable_salary_new = max(0, gross_salary - standard_new)
+
+    total_income_old_before_chapter_vi = taxable_salary_old + other_income + capital_gain
+    total_income_new_before_chapter_vi = taxable_salary_new + other_income + capital_gain
+
+    # Chapter VI-A deductions for old regime.
+    deduction_80c_value = _num(tax.get("deduction80C")) + epf_contribution
+    deduction_80c = min(150000, deduction_80c_value)
+
+    deduction_80ccd_1b_value = nps_employee
+    deduction_80ccd_1b = min(50000, deduction_80ccd_1b_value)
+
+    # Employer NPS 80CCD(2): 10% basic old, 14% basic new.
+    deduction_80ccd2_old_value = nps_employer
+    deduction_80ccd2_old_max = basic_salary * 0.10 if basic_salary else nps_employer
+    deduction_80ccd2_old = min(deduction_80ccd2_old_value, deduction_80ccd2_old_max)
+
+    deduction_80ccd2_new_value = nps_employer
+    deduction_80ccd2_new_max = basic_salary * 0.14 if basic_salary else nps_employer
+    deduction_80ccd2_new = min(deduction_80ccd2_new_value, deduction_80ccd2_new_max)
+
+    deduction_80d_self = min(_num(tax.get("health80D")), 25000)
+    deduction_80d_parents = min(_num(tax.get("health80DParents")), 50000)
+    deduction_80d_total = deduction_80d_self + deduction_80d_parents
+
     deduction_80g = _num(tax.get("donation80G"))
     deduction_80e = _num(tax.get("educationLoan80E"))
-    deduction_80tta_ttb = _num(tax.get("interest80TTA_TTB"))
-    deduction_80eea = min(150000, _num(tax.get("homeLoan80EEA")))
-    section_24b = min(200000, _num(tax.get("homeLoanInterest24B")))
-    lta = _num(tax.get("ltaExemption")) or lta_received
+    deduction_80tta = min(savings_interest, 10000)
+    home_loan_interest = min(_num(tax.get("homeLoanInterest24B")), 200000)
+    deduction_80ee = min(_num(tax.get("homeLoan80EE")), 50000)
+    deduction_80eea = min(_num(tax.get("homeLoan80EEA")), 150000)
 
-    employer_nps_old = min(employer_nps, basic_annual * 0.10) if basic_annual > 0 else employer_nps
-    employer_nps_new = min(employer_nps, basic_annual * 0.14) if basic_annual > 0 else employer_nps
-
-    old_deductions = (
-        standard_old + hra + lta + professional_tax + deduction_80c
-        + deduction_80ccd_1b + employer_nps_old + deduction_80d + deduction_80g
-        + deduction_80e + deduction_80tta_ttb + deduction_80eea + section_24b
+    old_gross_deductions = (
+        deduction_80c
+        + deduction_80ccd_1b
+        + deduction_80ccd2_old
+        + deduction_80d_total
+        + deduction_80g
+        + deduction_80e
+        + deduction_80tta
+        + home_loan_interest
+        + deduction_80ee
+        + deduction_80eea
     )
-    new_deductions = standard_new + employer_nps_new
 
-    old_taxable = max(0, gross_income - old_deductions)
-    new_taxable = max(0, gross_income - new_deductions)
+    old_taxable_income = max(0, total_income_old_before_chapter_vi - old_gross_deductions)
+    new_taxable_income = max(0, total_income_new_before_chapter_vi - deduction_80ccd2_new)
 
     old_slabs = [(250000, 0), (500000, 0.05), (1000000, 0.20), (10**18, 0.30)]
-    new_slabs = [(400000, 0), (800000, 0.05), (1200000, 0.10), (1600000, 0.15), (2000000, 0.20), (2400000, 0.25), (10**18, 0.30)]
+    new_slabs = [
+        (400000, 0),
+        (800000, 0.05),
+        (1200000, 0.10),
+        (1600000, 0.15),
+        (2000000, 0.20),
+        (2400000, 0.25),
+        (10**18, 0.30),
+    ]
 
-    old_breakdown, old_tax_before_rebate = slab_breakdown(old_taxable, old_slabs)
-    new_breakdown, new_tax_before_rebate = slab_breakdown(new_taxable, new_slabs)
+    old_breakdown, old_tax_before_rebate = slab_breakdown(old_taxable_income, old_slabs)
+    new_breakdown, new_tax_before_rebate = slab_breakdown(new_taxable_income, new_slabs)
 
-    old_rebate = old_tax_before_rebate if old_taxable <= 500000 else 0
-    new_rebate = new_tax_before_rebate if new_taxable <= 1200000 else 0
+    old_rebate = old_tax_before_rebate if old_taxable_income <= 500000 else 0
+    new_rebate = new_tax_before_rebate if new_taxable_income <= 1200000 else 0
 
     old_tax_after_rebate = max(0, old_tax_before_rebate - old_rebate)
     new_tax_after_rebate_before_relief = max(0, new_tax_before_rebate - new_rebate)
 
     new_marginal_relief = 0
-    if new_taxable > 1200000:
-        max_tax_due_to_threshold = new_taxable - 1200000
+    if new_taxable_income > 1200000:
+        max_tax_due_to_threshold = new_taxable_income - 1200000
         if new_tax_after_rebate_before_relief > max_tax_due_to_threshold:
             new_marginal_relief = new_tax_after_rebate_before_relief - max_tax_due_to_threshold
 
@@ -618,8 +711,8 @@ def compute_tax(profile):
             return 0.25
         return 0.25 if regime == "new" else 0.37
 
-    old_surcharge_rate = surcharge_rate(old_taxable, "old")
-    new_surcharge_rate = surcharge_rate(new_taxable, "new")
+    old_surcharge_rate = surcharge_rate(old_taxable_income, "old")
+    new_surcharge_rate = surcharge_rate(new_taxable_income, "new")
     old_surcharge = old_tax_after_rebate * old_surcharge_rate
     new_surcharge = new_tax_after_rebate * new_surcharge_rate
 
@@ -629,19 +722,42 @@ def compute_tax(profile):
     old_cess = old_tax_before_cess * 0.04
     new_cess = new_tax_before_cess * 0.04
 
-    old_tax_with_cess = old_tax_before_cess + old_cess
-    new_tax_with_cess = new_tax_before_cess + new_cess
+    old_tax_payable = old_tax_before_cess + old_cess
+    new_tax_payable = new_tax_before_cess + new_cess
 
-    preferred = "Old" if old_tax_with_cess < new_tax_with_cess else "New"
+    total_tax_paid = _num(tax.get("taxPaid")) or income_tax_paid_salary
+    old_refund_or_pay = total_tax_paid - old_tax_payable
+    new_refund_or_pay = total_tax_paid - new_tax_payable
+
+    preferred = "Old" if old_tax_payable < new_tax_payable else "New"
+
+    old_tax_percent = (old_tax_payable / gross_salary * 100) if gross_salary else 0
+    new_tax_percent = (new_tax_payable / gross_salary * 100) if gross_salary else 0
 
     return {
         "fyLabel": "FY 2026-27",
-        "grossIncome": _money(gross_income),
+        "salaryInputRequired": basics.get("employmentType") == "salaried",
+        "grossIncome": _money(gross_salary),
+        "grossSalary": _money(gross_salary),
+        "grossEarning": _money(gross_salary),
         "salaryComponentsTotal": _money(salary_components_total),
-        "oldDeductions": _money(old_deductions),
-        "newDeductions": _money(new_deductions),
-        "oldTaxable": _money(old_taxable),
-        "newTaxable": _money(new_taxable),
+        "grossDeductionsInput": _money(gross_deductions_input),
+        "netSalary": _money(net_salary),
+        "totalTaxPaid": _money(total_tax_paid),
+
+        "oldDeductions": _money(old_gross_deductions),
+        "newDeductions": _money(deduction_80ccd2_new),
+        "oldTaxable": _money(old_taxable_income),
+        "newTaxable": _money(new_taxable_income),
+        "oldTax": _money(old_tax_payable),
+        "newTax": _money(new_tax_payable),
+        "oldRefundOrNeedToPay": _money(old_refund_or_pay),
+        "newRefundOrNeedToPay": _money(new_refund_or_pay),
+        "oldTaxPercent": round(old_tax_percent, 2),
+        "newTaxPercent": round(new_tax_percent, 2),
+        "preferredRegime": preferred,
+        "savingsVsOther": _money(abs(old_tax_payable - new_tax_payable)),
+
         "oldSlabBreakdown": old_breakdown,
         "newSlabBreakdown": new_breakdown,
         "oldTaxBeforeRebate": _money(old_tax_before_rebate),
@@ -653,29 +769,86 @@ def compute_tax(profile):
         "newSurcharge": _money(new_surcharge),
         "oldCess": _money(old_cess),
         "newCess": _money(new_cess),
-        "oldTax": _money(old_tax_with_cess),
-        "newTax": _money(new_tax_with_cess),
-        "preferredRegime": preferred,
-        "savingsVsOther": _money(abs(old_tax_with_cess - new_tax_with_cess)),
+
+        "oldRegimeRows": [
+            {"description": "Gross Salary", "value": _money(gross_salary), "maximumNonTaxable": None, "nonTaxable": 0, "netTaxable": _money(gross_salary)},
+            {"description": "HRA", "value": _money(hra_received), "maximumNonTaxable": None, "nonTaxable": _money(hra_exemption), "netTaxable": _money(max(0, hra_received - hra_exemption))},
+            {"description": "P-Tax", "value": _money(prof_tax), "maximumNonTaxable": None, "nonTaxable": _money(prof_tax), "netTaxable": 0},
+            {"description": "Standard Deduction", "value": _money(standard_old), "maximumNonTaxable": _money(standard_old), "nonTaxable": _money(standard_old), "netTaxable": 0},
+            {"description": "Total Taxable Salary", "value": None, "maximumNonTaxable": None, "nonTaxable": _money(taxable_salary_old), "netTaxable": None},
+            {"description": "Income From Other sources", "value": _money(other_income), "maximumNonTaxable": None, "nonTaxable": 0, "netTaxable": _money(other_income)},
+            {"description": "Capital Gain", "value": _money(capital_gain), "maximumNonTaxable": None, "nonTaxable": 0, "netTaxable": _money(capital_gain)},
+            {"description": "Total Income", "value": None, "maximumNonTaxable": None, "nonTaxable": _money(total_income_old_before_chapter_vi), "netTaxable": None},
+            {"description": "80C", "value": _money(deduction_80c_value), "maximumNonTaxable": 150000, "nonTaxable": _money(deduction_80c), "netTaxable": _money(max(0, deduction_80c_value - deduction_80c))},
+            {"description": "80CCD(1B)", "value": _money(deduction_80ccd_1b_value), "maximumNonTaxable": 50000, "nonTaxable": _money(deduction_80ccd_1b), "netTaxable": _money(max(0, deduction_80ccd_1b_value - deduction_80ccd_1b))},
+            {"description": "80CCD(2) Employer NPS", "value": _money(deduction_80ccd2_old_value), "maximumNonTaxable": _money(deduction_80ccd2_old_max), "nonTaxable": _money(deduction_80ccd2_old), "netTaxable": _money(max(0, deduction_80ccd2_old_value - deduction_80ccd2_old))},
+            {"description": "80D Self/Family", "value": _money(_num(tax.get("health80D"))), "maximumNonTaxable": 25000, "nonTaxable": _money(deduction_80d_self), "netTaxable": _money(max(0, _num(tax.get("health80D")) - deduction_80d_self))},
+            {"description": "80D Parents", "value": _money(_num(tax.get("health80DParents"))), "maximumNonTaxable": 50000, "nonTaxable": _money(deduction_80d_parents), "netTaxable": _money(max(0, _num(tax.get("health80DParents")) - deduction_80d_parents))},
+            {"description": "80G", "value": _money(deduction_80g), "maximumNonTaxable": None, "nonTaxable": _money(deduction_80g), "netTaxable": 0},
+            {"description": "80TTA", "value": _money(savings_interest), "maximumNonTaxable": 10000, "nonTaxable": _money(deduction_80tta), "netTaxable": _money(max(0, savings_interest - deduction_80tta))},
+            {"description": "Meal Allowance", "value": _money(meal_allowance), "maximumNonTaxable": 26400, "nonTaxable": _money(meal_exemption), "netTaxable": _money(max(0, meal_allowance - meal_exemption))},
+            {"description": "Telephone", "value": _money(telephone_reimbursement), "maximumNonTaxable": 24000, "nonTaxable": _money(telephone_exemption), "netTaxable": _money(max(0, telephone_reimbursement - telephone_exemption))},
+            {"description": "Internet", "value": _money(internet_allowance), "maximumNonTaxable": 24000, "nonTaxable": _money(internet_exemption), "netTaxable": _money(max(0, internet_allowance - internet_exemption))},
+            {"description": "Leave Encashment", "value": _money(leave_encashment), "maximumNonTaxable": 300000, "nonTaxable": _money(leave_encashment_exemption), "netTaxable": _money(max(0, leave_encashment - leave_encashment_exemption))},
+            {"description": "Home Loan Interest", "value": _money(_num(tax.get("homeLoanInterest24B"))), "maximumNonTaxable": 200000, "nonTaxable": _money(home_loan_interest), "netTaxable": _money(max(0, _num(tax.get("homeLoanInterest24B")) - home_loan_interest))},
+            {"description": "80EE", "value": _money(_num(tax.get("homeLoan80EE"))), "maximumNonTaxable": 50000, "nonTaxable": _money(deduction_80ee), "netTaxable": _money(max(0, _num(tax.get("homeLoan80EE")) - deduction_80ee))},
+            {"description": "80EEA", "value": _money(_num(tax.get("homeLoan80EEA"))), "maximumNonTaxable": 150000, "nonTaxable": _money(deduction_80eea), "netTaxable": _money(max(0, _num(tax.get("homeLoan80EEA")) - deduction_80eea))},
+            {"description": "Gross Deductions", "value": None, "maximumNonTaxable": None, "nonTaxable": _money(old_gross_deductions), "netTaxable": None},
+            {"description": "Net Taxable Income", "value": None, "maximumNonTaxable": None, "nonTaxable": _money(old_taxable_income), "netTaxable": None},
+            {"description": "Total Tax", "value": None, "maximumNonTaxable": None, "nonTaxable": _money(old_tax_after_rebate + old_surcharge), "netTaxable": None},
+            {"description": "Health & Cess", "value": None, "maximumNonTaxable": None, "nonTaxable": _money(old_cess), "netTaxable": None},
+            {"description": "Net Tax Payable", "value": None, "maximumNonTaxable": None, "nonTaxable": _money(old_tax_payable), "netTaxable": None},
+            {"description": "Total Tax Paid", "value": None, "maximumNonTaxable": None, "nonTaxable": _money(total_tax_paid), "netTaxable": None},
+            {"description": "Refund / Need To Pay", "value": None, "maximumNonTaxable": None, "nonTaxable": _money(old_refund_or_pay), "netTaxable": None},
+            {"description": "Tax %", "value": None, "maximumNonTaxable": None, "nonTaxable": old_tax_percent, "netTaxable": None},
+        ],
+
+        "newRegimeRows": [
+            {"description": "Gross Salary", "formula": _money(gross_salary)},
+            {"description": "Standard Deduction", "formula": _money(standard_new)},
+            {"description": "Employer NPS 80CCD(2)", "formula": _money(deduction_80ccd2_new)},
+            {"description": "Taxable Income", "formula": _money(new_taxable_income)},
+            {"description": "Total Tax Before Rebate", "formula": _money(new_tax_before_rebate)},
+            {"description": "Rebate", "formula": _money(new_rebate)},
+            {"description": "Marginal Relief", "formula": _money(new_marginal_relief)},
+            {"description": "Surcharge", "formula": _money(new_surcharge)},
+            {"description": "Cess (4%)", "formula": _money(new_cess)},
+            {"description": "Total Tax Payable", "formula": _money(new_tax_payable)},
+        ],
+
+        "hraCalculation": {
+            "actualHra": _money(hra_received),
+            "rentMinus10PctBasic": _money(max(0, rent_paid - 0.10 * basic_salary)),
+            "basicLimit": _money(basic_ratio * basic_salary),
+            "hraExemption": _money(hra_exemption),
+            "formula": "Minimum of actual HRA, rent paid minus 10% basic, and 50% basic for metro / 40% for non-metro.",
+        },
+
         "deductionBreakdown": {
             "standardDeductionOld": _money(standard_old),
             "standardDeductionNew": _money(standard_new),
             "autoHraExemption": _money(auto_hra_exemption),
-            "hraUsed": _money(hra),
-            "lta": _money(lta),
-            "professionalTax": _money(professional_tax),
+            "hraUsed": _money(hra_exemption),
+            "profTax": _money(prof_tax),
             "section80C": _money(deduction_80c),
             "section80CCD1B": _money(deduction_80ccd_1b),
-            "employerNpsOld": _money(employer_nps_old),
-            "employerNpsNew": _money(employer_nps_new),
-            "section80D": _money(deduction_80d),
+            "employerNpsOld": _money(deduction_80ccd2_old),
+            "employerNpsNew": _money(deduction_80ccd2_new),
+            "section80D": _money(deduction_80d_total),
+            "section80DParents": _money(deduction_80d_parents),
             "section80G": _money(deduction_80g),
             "section80E": _money(deduction_80e),
-            "section80TTA_TTB": _money(deduction_80tta_ttb),
+            "section80TTA": _money(deduction_80tta),
+            "section80EE": _money(deduction_80ee),
             "section80EEA": _money(deduction_80eea),
-            "section24B": _money(section_24b),
+            "section24B": _money(home_loan_interest),
+            "mealAllowance": _money(meal_exemption),
+            "telephone": _money(telephone_exemption),
+            "internet": _money(internet_exemption),
+            "leaveEncashment": _money(leave_encashment_exemption),
         },
     }
+
 
 def slab_breakdown(taxable, slabs):
     taxable = _num(taxable)

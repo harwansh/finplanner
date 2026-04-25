@@ -21,6 +21,33 @@ const empty = {
     taxRegime: 'new',
   },
   salary: {
+    basicSalary: '',
+    hraReceived: '',
+    lta: '',
+    internetAllowance: '',
+    flexibleCompPlan: '',
+    telephoneReimbursement: '',
+    npsEmployer: '',
+    superannuation: '',
+    leaveEncashment: '',
+    bonusVariablePay: '',
+    shiftAllowance: '',
+    onCallAllowance: '',
+    internet: '',
+    teamParty: '',
+    awardsNonCashTaxable: '',
+    grossEarning: '',
+    epfContribution: '',
+    profTax: '',
+    incomeTax: '',
+    labourWelfareFund: '',
+    npsEmployee: '',
+    meal: '',
+    noticeRecovery: '',
+    grossDeductions: '',
+    netSalary: '',
+    rentPaid: '',
+
     monthlyBasic: '',
     monthlyHra: '',
     monthlySpecialAllowance: '',
@@ -69,6 +96,33 @@ const liabilityLabels = {
 }
 
 const salaryLabels = {
+  basicSalary: 'Basic Salary*',
+  hraReceived: 'HRA received*',
+  lta: 'LTA',
+  internetAllowance: 'Internet Allowance',
+  flexibleCompPlan: 'Flexible Comp Plan',
+  telephoneReimbursement: 'Telephone Reimbursement',
+  npsEmployer: 'NPS Employer',
+  superannuation: 'Superannuation',
+  leaveEncashment: 'Leave Encashment',
+  bonusVariablePay: 'Bonus / Variable Pay',
+  shiftAllowance: 'Shift Allowance',
+  onCallAllowance: 'On Call Allowance',
+  internet: 'Internet',
+  teamParty: 'Team Party',
+  awardsNonCashTaxable: 'Awards – Non-Cash Taxable',
+  grossEarning: 'Gross Earning',
+  epfContribution: 'E-PF Contribution*',
+  profTax: 'Prof Tax',
+  incomeTax: 'Income Tax / TDS paid',
+  labourWelfareFund: 'Labour welfare fund',
+  npsEmployee: 'NPS Employee',
+  meal: 'Meal',
+  noticeRecovery: 'Notice Recovery',
+  grossDeductions: 'Gross Deductions',
+  netSalary: 'Net Salary',
+  rentPaid: 'Annual Rent Paid for HRA',
+
   monthlyBasic: 'Monthly basic salary',
   monthlyHra: 'Monthly HRA received',
   monthlySpecialAllowance: 'Monthly special / flexible allowance',
@@ -1105,6 +1159,18 @@ function validateProfileTab(profile) {
 }
 
 function validateSalaryCashflowTab(profile) {
+  if (profile.basics?.employmentType === 'salaried') {
+    if (!Number(profile.salary?.basicSalary) && !Number(profile.salary?.monthlyBasic)) {
+      return 'Please enter Basic Salary for salaried tax calculation before continuing.'
+    }
+    if (!Number(profile.salary?.hraReceived) && !Number(profile.salary?.monthlyHra)) {
+      return 'Please enter HRA received for salaried tax calculation before continuing.'
+    }
+    if (!Number(profile.salary?.epfContribution) && !Number(profile.salary?.monthlyEmployeeEpf)) {
+      return 'Please enter E-PF Contribution for salaried tax calculation before continuing.'
+    }
+  }
+
   if (!Number(profile.income.monthlyAfterTax) || Number(profile.income.monthlyAfterTax) <= 0) {
     return 'Please enter monthly income after tax before continuing.'
   }
