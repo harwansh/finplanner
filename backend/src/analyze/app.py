@@ -1,36 +1,37 @@
-"""POST /analyze - returns net worth (deterministic) + ranked financial goals (Bedrock)."""
+"""POST /analyze - takes profile JSON, returns net worth snapshot + markdown plan."""
 import json
 import os
-import sys
-from decimal import Decimal
 
 import boto3
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from common.utils import respond, get_user_id  # noqa: E402
-
-TABLE_NAME = os.environ["TABLE_NAME"]
 MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 
-ddb = boto3.resource("dynamodb")
-table = ddb.Table(TABLE_NAME)
 bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
 
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Content-Type": "application/json",
+}
 
-# ---------------- deterministic math ----------------
-def _num(x) -> float:
-    if x is None:
+
+def respond(status, body):
+    return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
+
+
+# ---------- deterministic math (snapshot only) ----------
+def _num(x):
+    if x is None or x == "":
         return 0.0
-    if isinstance(x, Decimal):
-        return float(x)
     try:
         return float(x)
     except (TypeError, ValueError):
         return 0.0
 
 
-def compute_networth(profile: dict) -> dict:
+def compute_networth(profile):
     assets = profile.get("assets", {}) or {}
     liabilities = profile.get("liabilities", {}) or {}
     income = profile.get("income", {}) or {}
@@ -41,16 +42,17 @@ def compute_networth(profile: dict) -> dict:
     net_worth = total_assets - total_liabilities
 
     monthly_income = _num(income.get("monthlyAfterTax")) + _num(income.get("otherMonthly"))
+    monthly_emi = _num(profile.get("monthlyEmi"))
     monthly_expenses = (
         _num(expenses.get("fixed"))
         + _num(expenses.get("variable"))
         + _num(expenses.get("annual")) / 12.0
+        + monthly_emi
     )
     monthly_surplus = monthly_income - monthly_expenses
     savings_rate = (monthly_surplus / monthly_income * 100.0) if monthly_income > 0 else 0.0
-    emergency_months = (
-        _num(assets.get("savings")) / monthly_expenses if monthly_expenses > 0 else 0.0
-    )
+    emergency_have = _num(profile.get("emergencyFund")) or _num(assets.get("savings"))
+    emergency_months = (emergency_have / monthly_expenses) if monthly_expenses > 0 else 0.0
 
     return {
         "totalAssets": round(total_assets, 2),
@@ -64,50 +66,149 @@ def compute_networth(profile: dict) -> dict:
     }
 
 
-# ---------------- Bedrock-driven goals ----------------
-SYSTEM_PROMPT = """You are a careful, conservative personal-finance planner.
-You will receive a user's profile JSON and a computed financial summary.
-Generate exactly 15 personalized financial goals, organized into three buckets:
-  - "mustHave": 5 goals (non-negotiable foundations: emergency fund, insurance, high-interest debt, etc.)
-  - "goodToHave": 5 goals (medium-term: retirement on track, kids' education, home, etc.)
-  - "optional": 5 goals (lifestyle / wealth: travel fund, second home, early retirement, etc.)
+# ---------- the India-focused planning prompt ----------
+SYSTEM_PROMPT = """You are an expert financial planning AI assistant for Indian users (or whichever country the user specifies). Your job is to use the user's financial and family details to calculate realistic inflation-adjusted financial goals and generate a personalized long-term financial roadmap.
 
-For EACH goal, return:
-  - title: short name (max 60 chars)
-  - rationale: 1-2 sentence reason tailored to THIS user
-  - targetAmount: numeric estimate in user's currency (use country to infer currency)
-  - timelineMonths: integer
-  - monthlyContribution: integer estimate
-  - priority: 1 (highest) within its bucket
+Use real-world financial planning logic, inflation-adjusted values, expected return assumptions, risk profiling, and goal-based investing calculations.
 
-Rules:
-- Be realistic given the user's monthly surplus. Do not propose contributions exceeding it in total for mustHave.
-- If the user has high-interest debt (credit card), prioritize paying it before investing.
-- Respect risk tolerance, dependents, marital status, and any ethical/religious constraints.
-- Output ONLY valid JSON, no prose, no markdown fences. Schema:
-{"mustHave":[...5...],"goodToHave":[...5...],"optional":[...5...]}
+Do not give generic advice. Every goal amount, monthly investment, future value, and timeline must be calculated based on the user's inputs.
+
+## Default Assumptions (India)
+- General inflation: 6% per year
+- Education inflation: 10% per year
+- Medical inflation: 10% per year
+- Marriage inflation: 7% per year
+- Real estate inflation: 6% per year
+- Pre-retirement equity return: 11% per year
+- Pre-retirement debt return: 7% per year
+- Balanced portfolio return: 9% per year
+- Post-retirement return: 7% per year
+- Retirement expense inflation: 6% per year
+- Safe withdrawal rate: 3.5% to 4% per year
+- Emergency fund requirement: 6 to 12 months of expenses
+- Life expectancy assumption: 85 to 90 years
+
+State assumptions used.
+
+## Output Format
+
+Output a single Markdown document with these sections in this exact order:
+
+### 1. User Financial Snapshot
+A concise bulleted summary: age, retirement age, monthly income, monthly expenses, dependents, children's ages, parent dependency, total assets, total liabilities, insurance status, risk profile.
+
+### 2. Key Assumptions Used
+List inflation and return assumptions actually used.
+
+### 3. Financial Goal Summary Table
+A markdown table:
+
+| No. | Goal | Timeline | Present Cost | Future Cost | Existing Allocation | Gap | Monthly Investment | Priority |
+
+Pick the 15 most relevant goals from this list (only include those that apply to the user):
+1. Emergency fund
+2. Health insurance planning
+3. Life insurance planning
+4. Debt repayment
+5. Early retirement
+6. Regular retirement
+7. Child education
+8. Child marriage
+9. Home purchase (if user does not own)
+10. Home loan prepayment (if user has a home loan)
+11. Vehicle purchase
+12. Parents' medical support fund
+13. Parents' monthly support
+14. Vacation/travel fund
+15. Wealth creation
+16. Tax-saving investment
+17. Children's skill/hobby development
+18. Higher education abroad (if applicable)
+19. Business/startup fund (if applicable)
+20. Legacy/estate planning
+
+### 4. Detailed Goal-Wise Plan
+For each of the 15 selected goals provide:
+- Goal explanation (1-2 sentences)
+- Calculation logic (show the formula used)
+- Future value (compute it)
+- Investment required (Monthly SIP)
+- Suggested investment strategy (asset allocation, products)
+- Risk level
+- Priority (Critical / High / Medium / Low)
+- Step-by-step action plan (3-5 bullet points)
+
+### 5. Retirement Planning
+Compute and show:
+- Monthly expense at retirement (after inflation)
+- Annual expenses at retirement
+- Retirement corpus required
+- Existing retirement savings
+- Retirement gap
+- Monthly SIP required
+- Corpus sustainability until age 85-90
+
+### 6. Child Planning
+If user has children, compute for each child:
+- Education cost
+- Higher education cost
+- Marriage cost (if applicable)
+- Timeline based on child's current age
+- Monthly investment required
+
+### 7. Parents Dependency
+If parents are dependent, compute:
+- Monthly support requirement
+- Medical emergency corpus
+- Health insurance need
+- Annual support cost after inflation
+
+### 8. Home Planning
+If user does NOT own a home: estimate future home cost, down payment, loan, EMI affordability, monthly investment for down payment.
+If user owns: home loan status, prepayment strategy if useful.
+
+### 9. Insurance Gap Analysis
+- Required life cover (use: 15-20× annual expenses + liabilities + future goals - existing liquid assets)
+- Existing life cover
+- Insurance gap
+- Health insurance recommendation
+- Critical illness cover recommendation
+
+### 10. Monthly Investment Feasibility
+- Total required monthly investment (sum across all goals)
+- User's monthly surplus (provided in summary)
+- Are goals achievable? Which ones to delay/reduce?
+
+### 11. Priority-Based Action Plan
+Group actions by horizon:
+- Immediate (0-3 months)
+- Short term (3 months - 2 years)
+- Medium term (2-7 years)
+- Long term (7+ years)
+
+### 12. Final Recommendations
+Practical recommendations on emergency fund, insurance, debt, allocation, retirement, child goals, parent support, tax planning, annual review.
+
+## Formulas to use
+- Future Value: FV = PV × (1 + inflation_rate)^years
+- Monthly SIP: SIP = FV × r / [((1 + r)^n - 1) × (1 + r)] where r = monthly expected return, n = months
+
+## Rules
+- Every amount must be calculated, not guessed.
+- Show formulas inline where useful.
+- Use post-tax realistic return assumptions where possible.
+- If surplus is insufficient, prioritize and suggest trade-offs.
+- Do not promise guaranteed returns.
+- End with this disclaimer: "This is educational financial planning guidance, not registered financial advice."
+- Output ONLY the Markdown document, no preamble, no closing remarks beyond the disclaimer.
 """
 
 
-def _profile_to_decimal_safe(obj):
-    """Convert Decimals back to plain numbers for JSON serialization to Bedrock."""
-    if isinstance(obj, Decimal):
-        return float(obj) if obj % 1 else int(obj)
-    if isinstance(obj, dict):
-        return {k: _profile_to_decimal_safe(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_profile_to_decimal_safe(v) for v in obj]
-    return obj
-
-
-def call_bedrock(profile: dict, summary: dict) -> dict:
-    user_msg = json.dumps(
-        {"profile": _profile_to_decimal_safe(profile), "summary": summary},
-        ensure_ascii=False,
-    )
+def call_bedrock(profile, summary):
+    user_msg = json.dumps({"profile": profile, "summary": summary}, ensure_ascii=False)
     body = {
         "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 4000,
+        "max_tokens": 8000,
         "temperature": 0.2,
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": user_msg}],
@@ -120,38 +221,35 @@ def call_bedrock(profile: dict, summary: dict) -> dict:
     )
     payload = json.loads(resp["body"].read())
     text = "".join(
-        block.get("text", "") for block in payload.get("content", []) if block.get("type") == "text"
+        b.get("text", "") for b in payload.get("content", []) if b.get("type") == "text"
     ).strip()
-
-    # Strip accidental fences just in case
+    # Strip accidental fences
     if text.startswith("```"):
         text = text.strip("`")
-        if text.startswith("json"):
-            text = text[4:]
+        if text.startswith("markdown"):
+            text = text[len("markdown"):]
         text = text.strip()
-
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        return {"error": "model returned non-JSON", "raw": text[:500]}
+    return text
 
 
 def handler(event, context):
-    user_id = get_user_id(event)
-    if not user_id:
-        return respond(401, {"error": "unauthorized"})
+    if event.get("httpMethod") == "OPTIONS":
+        return respond(200, {})
 
-    result = table.get_item(Key={"userId": user_id})
-    item = result.get("Item")
-    if not item or not item.get("profile"):
-        return respond(404, {"error": "profile not found - submit profile first"})
-
-    profile = item["profile"]
-    summary = compute_networth(profile)
-
+    raw = event.get("body") or "{}"
     try:
-        goals = call_bedrock(profile, summary)
+        body = json.loads(raw)
+    except json.JSONDecodeError:
+        return respond(400, {"error": "invalid JSON body"})
+
+    profile = body.get("profile")
+    if not isinstance(profile, dict):
+        return respond(400, {"error": "profile object required in request body"})
+
+    summary = compute_networth(profile)
+    try:
+        report = call_bedrock(profile, summary)
     except Exception as e:
         return respond(500, {"error": f"bedrock error: {str(e)}", "summary": summary})
 
-    return respond(200, {"summary": summary, "goals": goals})
+    return respond(200, {"summary": summary, "report": report})
