@@ -1472,3 +1472,188 @@ def validate_profile(p):
         raise UserInputError(" ".join(errors))
 # ===== End SmartFinly canonical required-field hotfix v3 =====
 
+
+# ===== SmartFinly final parsing and full-data guardrail v4 =====
+
+def _num(value, default=0.0):
+    if value is None or value == "":
+        return default
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        try:
+            if math.isnan(value) or math.isinf(value):
+                return default
+        except TypeError:
+            pass
+        return float(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return default
+        negative = False
+        if text.startswith("(") and text.endswith(")"):
+            negative = True
+            text = text[1:-1]
+        text = (
+            text.replace("₹", "")
+            .replace("Rs.", "")
+            .replace("Rs", "")
+            .replace("INR", "")
+            .replace(",", "")
+            .replace("%", "")
+            .replace("\u00a0", "")
+            .strip()
+        )
+        cleaned = []
+        dot_seen = False
+        sign_seen = False
+        for ch in text:
+            if ch.isdigit():
+                cleaned.append(ch)
+            elif ch == "." and not dot_seen:
+                cleaned.append(ch)
+                dot_seen = True
+            elif ch in "+-" and not sign_seen and not cleaned:
+                cleaned.append(ch)
+                sign_seen = True
+        text = "".join(cleaned)
+        if text in {"", "+", "-", "."}:
+            return default
+        try:
+            number = float(text)
+            if math.isnan(number) or math.isinf(number):
+                return default
+            return -number if negative else number
+        except Exception:
+            return default
+    try:
+        number = float(value)
+        if math.isnan(number) or math.isinf(number):
+            return default
+        return number
+    except Exception:
+        return default
+
+
+def _sf_first(*values):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return ""
+
+
+def align_profile_field_aliases(profile):
+    if not isinstance(profile, dict):
+        return profile
+
+    basics = profile.setdefault("basics", {})
+    income = profile.setdefault("income", {})
+    salary = profile.setdefault("salary", {})
+    expenses = profile.setdefault("expenses", {})
+    tax = profile.setdefault("tax", {})
+
+    basics["age"] = _sf_first(basics.get("age"), basics.get("currentAge"), profile.get("age"), profile.get("currentAge"))
+    basics["desiredRetirementAge"] = _sf_first(basics.get("desiredRetirementAge"), basics.get("retirementAge"), profile.get("desiredRetirementAge"), profile.get("retirementAge"))
+    basics["country"] = _sf_first(basics.get("country"), profile.get("country"), "India")
+    basics["cityTier"] = _sf_first(basics.get("cityTier"), basics.get("cityType"), profile.get("cityTier"), profile.get("cityType"), "Metro")
+    basics["cityType"] = basics["cityTier"]
+    basics["maritalStatus"] = _sf_first(basics.get("maritalStatus"), profile.get("maritalStatus"), "single")
+    basics["employmentType"] = str(_sf_first(basics.get("employmentType"), basics.get("employment"), profile.get("employmentType"), profile.get("employment"), "salaried")).lower()
+    basics["employment"] = basics["employmentType"]
+    basics["parentsDependent"] = _sf_first(basics.get("parentsDependent"), basics.get("parentsFinanciallyDependent"), profile.get("parentsDependent"), False)
+    basics["dependentParentsCount"] = _sf_first(basics.get("dependentParentsCount"), basics.get("numberOfDependentParents"), profile.get("dependentParentsCount"), 0)
+    kids = basics.get("kids") or basics.get("children") or profile.get("kids") or profile.get("children") or []
+    basics["kids"] = kids if isinstance(kids, list) else []
+    basics["children"] = basics["kids"]
+
+    income["monthlyAfterTax"] = _sf_first(income.get("monthlyAfterTax"), income.get("monthlyIncomeAfterTax"), income.get("monthlyIncome"), income.get("netMonthlyIncome"), profile.get("monthlyAfterTax"), profile.get("monthlyIncome"))
+    income["otherMonthly"] = _sf_first(income.get("otherMonthly"), income.get("otherMonthlyIncome"), profile.get("otherMonthly"), 0)
+    income["bonusAnnual"] = _sf_first(income.get("bonusAnnual"), income.get("annualBonus"), profile.get("bonusAnnual"), 0)
+
+    expenses["fixed"] = _sf_first(expenses.get("fixed"), expenses.get("fixedMonthly"), expenses.get("fixedMonthlyExpenses"), profile.get("fixed"), profile.get("fixedMonthlyExpenses"), 0)
+    expenses["variable"] = _sf_first(expenses.get("variable"), expenses.get("variableMonthly"), expenses.get("variableMonthlyExpenses"), profile.get("variable"), profile.get("variableMonthlyExpenses"), 0)
+    expenses["annual"] = _sf_first(expenses.get("annual"), expenses.get("annualLumpSums"), expenses.get("annualExpenses"), profile.get("annual"), profile.get("annualExpenses"), 0)
+    profile["monthlyEmi"] = _sf_first(profile.get("monthlyEmi"), profile.get("monthlyEMI"), profile.get("totalMonthlyEMI"), profile.get("totalMonthlyEmi"), 0)
+
+    salary["basicSalary"] = _sf_first(salary.get("basicSalary"), salary.get("basic"), salary.get("annualBasic"), profile.get("basicSalary"), 0)
+    salary["hraReceived"] = _sf_first(salary.get("hraReceived"), salary.get("hra"), salary.get("annualHra"), profile.get("hraReceived"), 0)
+    salary["grossEarning"] = _sf_first(salary.get("grossEarning"), salary.get("grossSalary"), salary.get("annualGross"), profile.get("grossEarning"), profile.get("grossSalary"), 0)
+    salary["epfContribution"] = _sf_first(salary.get("epfContribution"), salary.get("employeeEpf"), salary.get("employeeEPF"), salary.get("ePfContribution"), profile.get("epfContribution"), 0)
+    salary["npsEmployer"] = _sf_first(salary.get("npsEmployer"), salary.get("employerNps"), salary.get("employerNPS"), profile.get("npsEmployer"), 0)
+    salary["rentPaid"] = _sf_first(salary.get("rentPaid"), salary.get("annualRentPaid"), profile.get("rentPaid"), 0)
+    salary["profTax"] = _sf_first(salary.get("profTax"), salary.get("professionalTax"), tax.get("professionalTax"), 0)
+    salary["incomeTax"] = _sf_first(salary.get("incomeTax"), salary.get("tds"), tax.get("taxPaid"), 0)
+
+    return profile
+
+
+def _missing_core_fields(profile):
+    profile = align_profile_field_aliases(profile)
+    basics = profile.get("basics", {}) or {}
+    income = profile.get("income", {}) or {}
+    missing = []
+    if _num(basics.get("age")) <= 0:
+        missing.append("Current age")
+    if _num(basics.get("desiredRetirementAge")) <= _num(basics.get("age")):
+        missing.append("Desired retirement age greater than current age")
+    if _num(income.get("monthlyAfterTax")) <= 0:
+        missing.append("Monthly after-tax income")
+    return missing
+
+
+def _has_any_salary_detail(profile):
+    profile = align_profile_field_aliases(profile)
+    salary = profile.get("salary", {}) or {}
+    return any(_num(salary.get(k)) > 0 for k in ["basicSalary", "hraReceived", "epfContribution", "grossEarning", "monthlyBasic", "monthlyHra", "monthlyEmployeeEpf", "annualGross", "bonusVariablePay", "npsEmployer"])
+
+
+def _missing_salaried_tax_fields(profile):
+    profile = align_profile_field_aliases(profile)
+    basics = profile.get("basics", {}) or {}
+    salary = profile.get("salary", {}) or {}
+    if basics.get("employmentType") != "salaried" or not _has_any_salary_detail(profile):
+        return []
+    missing = []
+    if _num(salary.get("basicSalary")) <= 0 and _num(salary.get("monthlyBasic")) <= 0:
+        missing.append("Basic Salary")
+    if _num(salary.get("hraReceived")) <= 0 and _num(salary.get("monthlyHra")) <= 0:
+        missing.append("HRA received")
+    if _num(salary.get("epfContribution")) <= 0 and _num(salary.get("monthlyEmployeeEpf")) <= 0:
+        missing.append("E-PF Contribution")
+    return missing
+
+
+def validate_profile(p):
+    p = align_profile_field_aliases(p)
+    errors = []
+    missing = _missing_core_fields(p)
+    if missing:
+        errors.append("Missing required fields: " + ", ".join(missing) + ".")
+    salary_missing = _missing_salaried_tax_fields(p)
+    if salary_missing:
+        errors.append("For salaried tax calculation, please enter: " + ", ".join(salary_missing) + ".")
+    if errors:
+        print("Validation failed after final normalization:", json.dumps({
+            "basics": p.get("basics", {}),
+            "income": p.get("income", {}),
+            "expenses": p.get("expenses", {}),
+            "salaryKeys": sorted(list((p.get("salary") or {}).keys())),
+            "investmentCount": len(p.get("investments") or []),
+            "goalCount": len(p.get("goals") or []),
+        }, default=str)[:1500])
+        raise UserInputError(" ".join(errors))
+
+
+def analyze_profile(profile):
+    cleaned = normalize_profile(align_profile_field_aliases(profile))
+    validate_profile(cleaned)
+    cashflow_data = cashflow(cleaned) if "cashflow" in globals() else get_cashflow(cleaned)
+    tax = compute_tax(cleaned)
+    plan = build_plan(cleaned, cashflow_data)
+    summary = build_summary(cleaned, cashflow_data, tax, plan)
+    truth = truth_sheet(summary, plan) if "truth_sheet" in globals() else build_truth_sheet(summary, plan)
+    body = {"summary": summary, "plan": plan, "truthSheet": truth, "report": build_report(summary, plan, truth)}
+    return ai_overlay(cleaned, body) if "ai_overlay" in globals() else ai_first_overlay(cleaned, body)
+# ===== End SmartFinly final parsing and full-data guardrail v4 =====
+

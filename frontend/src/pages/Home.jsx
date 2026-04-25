@@ -434,6 +434,137 @@ function LegalConsentBox({ accepted, onChange }) {
 }
 
 
+
+function sfParseMoney(value) {
+  if (value === '' || value == null) return 0
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (typeof value === 'boolean') return value
+  if (typeof value !== 'string') return value
+  const cleaned = buildSmartFinlyPayload(data)
+    .replace(/₹/g, '')
+    .replace(/Rs\.?/gi, '')
+    .replace(/INR/gi, '')
+    .replace(/,/g, '')
+    .replace(/%/g, '')
+    .trim()
+  if (cleaned === '') return 0
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : value
+}
+
+function sfNormalizeDeep(value) {
+  if (Array.isArray(value)) return value.map(sfNormalizeDeep)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, sfNormalizeDeep(v)]))
+  }
+  return sfParseMoney(value)
+}
+
+function buildSmartFinlyPayload(formState) {
+  const p = sfNormalizeDeep(JSON.parse(JSON.stringify(formState || {})))
+
+  p.basics = p.basics || {}
+  p.salary = p.salary || {}
+  p.income = p.income || {}
+  p.expenses = p.expenses || {}
+  p.liabilities = p.liabilities || {}
+  p.insurance = p.insurance || {}
+  p.tax = p.tax || {}
+  p.investments = Array.isArray(p.investments) ? p.investments : []
+  p.goals = Array.isArray(p.goals) ? p.goals : []
+
+  p.basics.age = sfParseMoney(p.basics.age ?? p.basics.currentAge ?? p.age ?? p.currentAge)
+  p.basics.currentAge = p.basics.age
+  p.basics.desiredRetirementAge = sfParseMoney(p.basics.desiredRetirementAge ?? p.basics.retirementAge ?? p.desiredRetirementAge ?? p.retirementAge)
+  p.basics.retirementAge = p.basics.desiredRetirementAge
+  p.basics.country = p.basics.country || p.country || 'India'
+  p.basics.cityTier = p.basics.cityTier || p.basics.cityType || p.cityTier || 'Metro'
+  p.basics.cityType = p.basics.cityTier
+  p.basics.maritalStatus = p.basics.maritalStatus || p.maritalStatus || 'single'
+  p.basics.employmentType = p.basics.employmentType || p.basics.employment || p.employmentType || 'salaried'
+  p.basics.employment = p.basics.employmentType
+  p.basics.kids = Array.isArray(p.basics.kids) ? p.basics.kids : (Array.isArray(p.basics.children) ? p.basics.children : [])
+  p.basics.children = p.basics.kids
+  p.basics.dependentParentsCount = sfParseMoney(p.basics.dependentParentsCount ?? p.basics.numberOfDependentParents ?? 0)
+
+  p.salary.basicSalary = sfParseMoney(p.salary.basicSalary ?? p.salary.basic ?? p.salary.annualBasic ?? 0)
+  p.salary.basic = p.salary.basicSalary
+  p.salary.annualBasic = p.salary.basicSalary
+  p.salary.hraReceived = sfParseMoney(p.salary.hraReceived ?? p.salary.hra ?? p.salary.annualHra ?? 0)
+  p.salary.hra = p.salary.hraReceived
+  p.salary.annualHra = p.salary.hraReceived
+  p.salary.grossEarning = sfParseMoney(p.salary.grossEarning ?? p.salary.grossSalary ?? p.salary.annualGross ?? 0)
+  p.salary.grossSalary = p.salary.grossEarning
+  p.salary.annualGross = p.salary.grossEarning
+  p.salary.epfContribution = sfParseMoney(p.salary.epfContribution ?? p.salary.employeeEpf ?? p.salary.employeeEPF ?? p.salary.ePfContribution ?? 0)
+  p.salary.employeeEpf = p.salary.epfContribution
+  p.salary.employeeEPF = p.salary.epfContribution
+  p.salary.ePfContribution = p.salary.epfContribution
+  p.salary.npsEmployer = sfParseMoney(p.salary.npsEmployer ?? p.salary.employerNps ?? p.salary.employerNPS ?? 0)
+  p.salary.employerNps = p.salary.npsEmployer
+  p.salary.employerNPS = p.salary.npsEmployer
+  p.salary.rentPaid = sfParseMoney(p.salary.rentPaid ?? p.salary.annualRentPaid ?? p.salary.rentPaidMonthly ?? 0)
+  p.salary.annualRentPaid = p.salary.rentPaid
+
+  p.income.monthlyAfterTax = sfParseMoney(p.income.monthlyAfterTax ?? p.income.monthlyIncomeAfterTax ?? p.income.monthlyIncome ?? p.income.netMonthlyIncome ?? 0)
+  p.income.monthlyIncomeAfterTax = p.income.monthlyAfterTax
+  p.income.monthlyIncome = p.income.monthlyAfterTax
+  p.income.netMonthlyIncome = p.income.monthlyAfterTax
+  p.income.bonusAnnual = sfParseMoney(p.income.bonusAnnual ?? p.income.annualBonus ?? 0)
+  p.income.annualBonus = p.income.bonusAnnual
+  p.income.otherMonthly = sfParseMoney(p.income.otherMonthly ?? p.income.otherMonthlyIncome ?? 0)
+  p.income.otherMonthlyIncome = p.income.otherMonthly
+
+  p.expenses.fixed = sfParseMoney(p.expenses.fixed ?? p.expenses.fixedMonthly ?? p.expenses.fixedMonthlyExpenses ?? 0)
+  p.expenses.fixedMonthlyExpenses = p.expenses.fixed
+  p.expenses.variable = sfParseMoney(p.expenses.variable ?? p.expenses.variableMonthly ?? p.expenses.variableMonthlyExpenses ?? 0)
+  p.expenses.variableMonthlyExpenses = p.expenses.variable
+  p.expenses.annual = sfParseMoney(p.expenses.annual ?? p.expenses.annualLumpSums ?? p.expenses.annualExpenses ?? 0)
+  p.expenses.annualExpenses = p.expenses.annual
+  p.monthlyEmi = sfParseMoney(p.monthlyEmi ?? p.monthlyEMI ?? p.totalMonthlyEMI ?? p.totalMonthlyEmi ?? 0)
+  p.totalMonthlyEMI = p.monthlyEmi
+
+  for (const key of Object.keys(p.liabilities)) p.liabilities[key] = sfParseMoney(p.liabilities[key])
+  for (const key of Object.keys(p.insurance)) p.insurance[key] = sfParseMoney(p.insurance[key])
+  for (const key of Object.keys(p.tax)) p.tax[key] = sfParseMoney(p.tax[key])
+
+  p.investments = p.investments.map((inv, index) => ({
+    name: inv.name || `Investment ${index + 1}`,
+    category: inv.category || 'other',
+    goal: inv.goal || 'wealth',
+    currentValue: sfParseMoney(inv.currentValue ?? 0),
+    monthlyAmount: sfParseMoney(inv.monthlyAmount ?? inv.monthlySip ?? inv.sip ?? 0),
+    expectedReturnPct: sfParseMoney(inv.expectedReturnPct ?? inv.returnPct ?? 8),
+  }))
+
+  p.goals = p.goals.map((goal, index) => ({
+    name: goal.name || `Goal ${index + 1}`,
+    category: goal.category || 'wealth',
+    presentCost: sfParseMoney(goal.presentCost ?? goal.todayNeed ?? goal.currentCost ?? 0),
+    years: sfParseMoney(goal.years ?? goal.timelineYears ?? 0),
+    inflationPct: sfParseMoney(goal.inflationPct ?? 6),
+    expectedReturnPct: sfParseMoney(goal.expectedReturnPct ?? 9),
+    priority: goal.priority || 'Medium',
+  }))
+
+  return p
+}
+
+function assertSmartFinlyPayload(payload, uiPreview) {
+  const problems = []
+  const monthlyExpenses = Number(payload.expenses.fixed || 0) + Number(payload.expenses.variable || 0) + (Number(payload.expenses.annual || 0) / 12) + Number(payload.monthlyEmi || 0)
+  const investmentValue = payload.investments.reduce((sum, inv) => sum + Number(inv.currentValue || 0), 0)
+  const existingSip = payload.investments.reduce((sum, inv) => sum + Number(inv.monthlyAmount || 0), 0)
+
+  if (!Number(payload.basics.age)) problems.push('age missing in payload')
+  if (!Number(payload.basics.desiredRetirementAge)) problems.push('retirement age missing in payload')
+  if (!Number(payload.income.monthlyAfterTax)) problems.push('monthly income missing in payload')
+  if (uiPreview && Number(uiPreview.monthlyExpenses || 0) > 0 && monthlyExpenses <= 0) problems.push('expenses lost before API call')
+  if (payload.investments.length > 0 && investmentValue <= 0 && existingSip <= 0) problems.push('investments lost before API call')
+
+  return problems.join(', ')
+}
+
 export default function Home() {
   const [data, setData] = useState(empty)
   const [activeTab, setActiveTab] = useState('profile')
@@ -529,7 +660,13 @@ export default function Home() {
     setErr('')
     setResult(null)
     try {
-      const cleaned = buildSubmitPayload(data)
+      const cleaned = buildSmartFinlyPayload(data)
+      const payloadMappingError = assertSmartFinlyPayload(cleaned, preview)
+      if (payloadMappingError) {
+        setErr('Payload mapping failed before API call: ' + payloadMappingError)
+        setBusy(false)
+        return
+      }
       const payloadShapeError = hasInvalidPayloadShape(cleaned)
       if (payloadShapeError) {
         setErr(payloadShapeError)
@@ -542,6 +679,7 @@ export default function Home() {
         return
       }
       if (import.meta.env.DEV) console.log('SmartFinly submit payload', cleaned)
+      console.info('SmartFinly FINAL submit payload', cleaned)
       const r = await analyze(cleaned)
       setResult(r)
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
@@ -1395,7 +1533,7 @@ function hasInvalidPayloadShape(profile) {
 function toBackendNumber(value) {
   if (value === '' || value == null) return ''
   if (typeof value === 'number') return value
-  const cleaned = String(value).replace(/,/g, '').replace(/₹/g, '').trim()
+  const cleaned = buildSmartFinlyPayload(data)
   if (cleaned === '') return ''
   const n = Number(cleaned)
   return Number.isFinite(n) ? n : value
@@ -1407,7 +1545,7 @@ function deepMoneyToNumber(value) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : ''
   if (typeof value !== 'string') return value
 
-  const cleaned = value
+  const cleaned = buildSmartFinlyPayload(data)
     .replace(/₹/g, '')
     .replace(/Rs\.?/gi, '')
     .replace(/INR/gi, '')
@@ -1783,7 +1921,7 @@ function validate(profile) {
 }
 
 function cleanProfile(profile) {
-  const cleaned = structuredClone(profile)
+  const cleaned = buildSmartFinlyPayload(data)
 
   cleaned.basics.kids = cleaned.basics.maritalStatus === 'married'
     ? cleaned.basics.kids
@@ -2166,7 +2304,7 @@ function parseIndianNumber(value) {
   if (!raw) return ''
 
   // Keep only digits and the first decimal point.
-  const cleaned = raw
+  const cleaned = buildSmartFinlyPayload(data)
     .replace(/[^0-9.]/g, '')
     .replace(/(\\..*)\\./g, '$1')
 
