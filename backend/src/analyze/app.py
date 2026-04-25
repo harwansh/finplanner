@@ -1,10 +1,10 @@
-"""POST /analyze - takes profile JSON, returns net worth snapshot + markdown plan."""
+"""POST /analyze - takes profile JSON, returns net worth + markdown plan via Bedrock Converse API."""
 import json
 import os
 
 import boto3
 
-MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 
 bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
@@ -21,7 +21,6 @@ def respond(status, body):
     return {"statusCode": status, "headers": CORS_HEADERS, "body": json.dumps(body)}
 
 
-# ---------- deterministic math (snapshot only) ----------
 def _num(x):
     if x is None or x == "":
         return 0.0
@@ -51,7 +50,7 @@ def compute_networth(profile):
     )
     monthly_surplus = monthly_income - monthly_expenses
     savings_rate = (monthly_surplus / monthly_income * 100.0) if monthly_income > 0 else 0.0
-    emergency_have = _num(profile.get("emergencyFund")) or _num(assets.get("savings"))
+    emergency_have = _num(profile.get("emergencyFund")) or _num(assets.get("savings")) or _num(assets.get("bankSavings"))
     emergency_months = (emergency_have / monthly_expenses) if monthly_expenses > 0 else 0.0
 
     return {
@@ -66,7 +65,6 @@ def compute_networth(profile):
     }
 
 
-# ---------- the India-focused planning prompt ----------
 SYSTEM_PROMPT = """You are an expert financial planning AI assistant for Indian users (or whichever country the user specifies). Your job is to use the user's financial and family details to calculate realistic inflation-adjusted financial goals and generate a personalized long-term financial roadmap.
 
 Use real-world financial planning logic, inflation-adjusted values, expected return assumptions, risk profiling, and goal-based investing calculations.
@@ -139,52 +137,26 @@ For each of the 15 selected goals provide:
 - Step-by-step action plan (3-5 bullet points)
 
 ### 5. Retirement Planning
-Compute and show:
-- Monthly expense at retirement (after inflation)
-- Annual expenses at retirement
-- Retirement corpus required
-- Existing retirement savings
-- Retirement gap
-- Monthly SIP required
-- Corpus sustainability until age 85-90
+Compute and show monthly expense at retirement (after inflation), annual expenses at retirement, retirement corpus required, existing retirement savings, retirement gap, monthly SIP required, corpus sustainability until age 85-90.
 
 ### 6. Child Planning
-If user has children, compute for each child:
-- Education cost
-- Higher education cost
-- Marriage cost (if applicable)
-- Timeline based on child's current age
-- Monthly investment required
+If user has children, compute for each child: education cost, higher education cost, marriage cost (if applicable), timeline based on child's current age, monthly investment required.
 
 ### 7. Parents Dependency
-If parents are dependent, compute:
-- Monthly support requirement
-- Medical emergency corpus
-- Health insurance need
-- Annual support cost after inflation
+If parents are dependent: monthly support requirement, medical emergency corpus, health insurance need, annual support cost after inflation.
 
 ### 8. Home Planning
 If user does NOT own a home: estimate future home cost, down payment, loan, EMI affordability, monthly investment for down payment.
 If user owns: home loan status, prepayment strategy if useful.
 
 ### 9. Insurance Gap Analysis
-- Required life cover (use: 15-20× annual expenses + liabilities + future goals - existing liquid assets)
-- Existing life cover
-- Insurance gap
-- Health insurance recommendation
-- Critical illness cover recommendation
+Required life cover (15-20× annual expenses + liabilities + future goals - existing liquid assets), existing life cover, insurance gap, health insurance recommendation, critical illness cover recommendation.
 
 ### 10. Monthly Investment Feasibility
-- Total required monthly investment (sum across all goals)
-- User's monthly surplus (provided in summary)
-- Are goals achievable? Which ones to delay/reduce?
+Total required monthly investment, user's monthly surplus, are goals achievable? Which to delay/reduce?
 
 ### 11. Priority-Based Action Plan
-Group actions by horizon:
-- Immediate (0-3 months)
-- Short term (3 months - 2 years)
-- Medium term (2-7 years)
-- Long term (7+ years)
+Group actions by horizon: Immediate (0-3 months), Short term (3 months - 2 years), Medium term (2-7 years), Long term (7+ years).
 
 ### 12. Final Recommendations
 Practical recommendations on emergency fund, insurance, debt, allocation, retirement, child goals, parent support, tax planning, annual review.
@@ -204,26 +176,16 @@ Practical recommendations on emergency fund, insurance, debt, allocation, retire
 """
 
 
-def call_bedrock(profile, summary):
+def call_bedrock_converse(profile, summary):
+    """Use Bedrock Converse API - works with any model (Nova, Llama, Mistral, Anthropic)."""
     user_msg = json.dumps({"profile": profile, "summary": summary}, ensure_ascii=False)
-    body = {
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 8000,
-        "temperature": 0.2,
-        "system": SYSTEM_PROMPT,
-        "messages": [{"role": "user", "content": user_msg}],
-    }
-    resp = bedrock.invoke_model(
+    response = bedrock.converse(
         modelId=MODEL_ID,
-        contentType="application/json",
-        accept="application/json",
-        body=json.dumps(body),
+        messages=[{"role": "user", "content": [{"text": user_msg}]}],
+        system=[{"text": SYSTEM_PROMPT}],
+        inferenceConfig={"maxTokens": 8000, "temperature": 0.2},
     )
-    payload = json.loads(resp["body"].read())
-    text = "".join(
-        b.get("text", "") for b in payload.get("content", []) if b.get("type") == "text"
-    ).strip()
-    # Strip accidental fences
+    text = response["output"]["message"]["content"][0]["text"].strip()
     if text.startswith("```"):
         text = text.strip("`")
         if text.startswith("markdown"):
@@ -233,7 +195,8 @@ def call_bedrock(profile, summary):
 
 
 def handler(event, context):
-    if event.get("httpMethod") == "OPTIONS":
+    method = event.get("requestContext", {}).get("http", {}).get("method") or event.get("httpMethod")
+    if method == "OPTIONS":
         return respond(200, {})
 
     raw = event.get("body") or "{}"
@@ -248,7 +211,7 @@ def handler(event, context):
 
     summary = compute_networth(profile)
     try:
-        report = call_bedrock(profile, summary)
+        report = call_bedrock_converse(profile, summary)
     except Exception as e:
         return respond(500, {"error": f"bedrock error: {str(e)}", "summary": summary})
 

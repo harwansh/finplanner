@@ -1,11 +1,12 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: FinPlanner - Lambda Function URL + Bedrock
+Description: FinPlanner - Bedrock Converse API + Amazon Nova
 
 Parameters:
   BedrockModelId:
     Type: String
-    Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+    Default: amazon.nova-pro-v1:0
+    Description: Any Bedrock model ID. Amazon Nova doesn't need Marketplace.
   BedrockRegion:
     Type: String
     Default: us-east-1
@@ -38,5 +39,4 @@ Resources:
 
 Outputs:
   ApiUrl:
-    Description: Lambda Function URL
     Value: !GetAtt AnalyzeFunctionUrl.FunctionUrl
