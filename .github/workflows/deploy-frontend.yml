@@ -51,13 +51,13 @@ jobs:
           VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID }}
           VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID }}
 
-      - name: Stop after build-only run
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_only == 'true' }}
+      - name: Stop after push build or build-only run
+        if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_only == 'true') }}
         run: |
-          echo "Build-only run completed. Skipping deploy."
+          echo "Frontend build completed. Skipping deploy for push/build-only run."
 
       - name: Validate deploy secrets
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only == 'true') }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_only == 'false' }}
         run: |
           missing=0
           for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION SMARTFINLY_S3_BUCKET; do
@@ -78,7 +78,7 @@ jobs:
           SMARTFINLY_S3_BUCKET: ${{ secrets.SMARTFINLY_S3_BUCKET }}
 
       - name: Configure AWS credentials
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only == 'true') }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_only == 'false' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -86,7 +86,7 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Upload assets with long cache
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only == 'true') }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_only == 'false' }}
         run: |
           aws s3 sync dist s3://${{ secrets.SMARTFINLY_S3_BUCKET }} \
             --delete \
@@ -94,14 +94,14 @@ jobs:
             --cache-control "public,max-age=31536000,immutable"
 
       - name: Upload index without long cache
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only == 'true') }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_only == 'false' }}
         run: |
           aws s3 cp dist/index.html s3://${{ secrets.SMARTFINLY_S3_BUCKET }}/index.html \
             --cache-control "no-cache,no-store,must-revalidate" \
             --content-type "text/html"
 
       - name: Check CloudFront distribution secret
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.build_only == 'true') }}
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_only == 'false' }}
         id: cloudfront
         run: |
           if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
