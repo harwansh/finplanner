@@ -770,3 +770,345 @@ def lambda_handler(event, context):
 # Keep this wrapper so Lambda Function URL can call the expected symbol.
 def handler(event, context):
     return lambda_handler(event, context)
+
+
+# ===== SmartFinly field mapping / validation hotfix v2 =====
+# Late-module override: keeps existing calculation code but fixes field aliases and validation.
+
+def _first_present(*values):
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return ""
+
+
+def _deep_get(obj, *paths):
+    for path in paths:
+        current = obj
+        ok = True
+        for part in path.split("."):
+            if not isinstance(current, dict) or part not in current:
+                ok = False
+                break
+            current = current.get(part)
+        if ok and current not in (None, ""):
+            return current
+    return ""
+
+
+def align_profile_field_aliases(profile):
+    if not isinstance(profile, dict):
+        return profile
+
+    basics = profile.setdefault("basics", {})
+    income = profile.setdefault("income", {})
+    salary = profile.setdefault("salary", {})
+    expenses = profile.setdefault("expenses", {})
+    tax = profile.setdefault("tax", {})
+
+    basics["age"] = _first_present(
+        basics.get("age"),
+        basics.get("currentAge"),
+        basics.get("current_age"),
+        profile.get("age"),
+        profile.get("currentAge"),
+        profile.get("current_age"),
+        _deep_get(profile, "profile.age", "profile.currentAge"),
+    )
+
+    basics["desiredRetirementAge"] = _first_present(
+        basics.get("desiredRetirementAge"),
+        basics.get("retirementAge"),
+        basics.get("desired_retirement_age"),
+        profile.get("desiredRetirementAge"),
+        profile.get("retirementAge"),
+        _deep_get(profile, "profile.desiredRetirementAge", "profile.retirementAge"),
+    )
+
+    basics["country"] = _first_present(
+        basics.get("country"),
+        profile.get("country"),
+        "India",
+    )
+
+    basics["cityTier"] = _first_present(
+        basics.get("cityTier"),
+        basics.get("cityType"),
+        basics.get("city"),
+        profile.get("cityTier"),
+        profile.get("cityType"),
+        profile.get("city"),
+        "Metro",
+    )
+
+    basics["maritalStatus"] = _first_present(
+        basics.get("maritalStatus"),
+        basics.get("marriedStatus"),
+        profile.get("maritalStatus"),
+        profile.get("marriedStatus"),
+        "single",
+    )
+
+    basics["employmentType"] = str(_first_present(
+        basics.get("employmentType"),
+        basics.get("employment"),
+        profile.get("employmentType"),
+        profile.get("employment"),
+        "salaried",
+    )).lower()
+
+    basics["parentsDependent"] = _first_present(
+        basics.get("parentsDependent"),
+        basics.get("parentsFinanciallyDependent"),
+        profile.get("parentsDependent"),
+        profile.get("parentsFinanciallyDependent"),
+        False,
+    )
+
+    basics["dependentParentsCount"] = _first_present(
+        basics.get("dependentParentsCount"),
+        basics.get("numberOfDependentParents"),
+        profile.get("dependentParentsCount"),
+        profile.get("numberOfDependentParents"),
+        0,
+    )
+
+    kids = basics.get("kids")
+    if not kids:
+        kids = (
+            basics.get("children")
+            or profile.get("children")
+            or profile.get("kids")
+            or _deep_get(profile, "family.children", "family.kids")
+            or []
+        )
+    basics["kids"] = kids if isinstance(kids, list) else []
+
+    income["monthlyAfterTax"] = _first_present(
+        income.get("monthlyAfterTax"),
+        income.get("monthlyIncomeAfterTax"),
+        income.get("monthlyIncome"),
+        income.get("netMonthlyIncome"),
+        income.get("takeHomeMonthly"),
+        profile.get("monthlyAfterTax"),
+        profile.get("monthlyIncomeAfterTax"),
+        profile.get("monthlyIncome"),
+        profile.get("netMonthlyIncome"),
+        profile.get("takeHomeMonthly"),
+        _deep_get(profile, "cashflow.monthlyAfterTax", "cashflow.monthlyIncome", "cashFlow.monthlyIncome"),
+    )
+
+    income["otherMonthly"] = _first_present(
+        income.get("otherMonthly"),
+        income.get("otherMonthlyIncome"),
+        income.get("otherIncomeMonthly"),
+        profile.get("otherMonthly"),
+        profile.get("otherMonthlyIncome"),
+        profile.get("otherIncomeMonthly"),
+        0,
+    )
+
+    income["bonusAnnual"] = _first_present(
+        income.get("bonusAnnual"),
+        income.get("annualBonus"),
+        salary.get("bonusVariablePay"),
+        profile.get("bonusAnnual"),
+        profile.get("annualBonus"),
+        0,
+    )
+
+    expenses["fixed"] = _first_present(
+        expenses.get("fixed"),
+        expenses.get("fixedMonthly"),
+        expenses.get("fixedMonthlyExpenses"),
+        expenses.get("monthlyFixed"),
+        profile.get("fixed"),
+        profile.get("fixedMonthly"),
+        profile.get("fixedMonthlyExpenses"),
+        profile.get("fixedExpenses"),
+        0,
+    )
+
+    expenses["variable"] = _first_present(
+        expenses.get("variable"),
+        expenses.get("variableMonthly"),
+        expenses.get("variableMonthlyExpenses"),
+        expenses.get("monthlyVariable"),
+        profile.get("variable"),
+        profile.get("variableMonthly"),
+        profile.get("variableMonthlyExpenses"),
+        profile.get("variableExpenses"),
+        0,
+    )
+
+    expenses["annual"] = _first_present(
+        expenses.get("annual"),
+        expenses.get("annualLumpSums"),
+        expenses.get("annualExpenses"),
+        profile.get("annual"),
+        profile.get("annualLumpSums"),
+        profile.get("annualExpenses"),
+        0,
+    )
+
+    profile["monthlyEmi"] = _first_present(
+        profile.get("monthlyEmi"),
+        profile.get("monthlyEMI"),
+        profile.get("totalMonthlyEMI"),
+        profile.get("totalMonthlyEmi"),
+        profile.get("totalMonthlyEmis"),
+        _deep_get(profile, "liabilities.monthlyEmi", "liabilities.monthlyEMI", "loans.monthlyEmi"),
+        0,
+    )
+
+    salary["basicSalary"] = _first_present(
+        salary.get("basicSalary"),
+        salary.get("basic"),
+        salary.get("annualBasic"),
+        salary.get("basicPay"),
+        profile.get("basicSalary"),
+        profile.get("basic"),
+        profile.get("annualBasic"),
+        0,
+    )
+
+    salary["hraReceived"] = _first_present(
+        salary.get("hraReceived"),
+        salary.get("hra"),
+        salary.get("annualHra"),
+        salary.get("annualHRA"),
+        profile.get("hraReceived"),
+        profile.get("hra"),
+        profile.get("annualHra"),
+        0,
+    )
+
+    salary["epfContribution"] = _first_present(
+        salary.get("epfContribution"),
+        salary.get("employeeEpf"),
+        salary.get("employeeEPF"),
+        salary.get("ePfContribution"),
+        salary.get("epf"),
+        profile.get("epfContribution"),
+        profile.get("employeeEpf"),
+        profile.get("employeeEPF"),
+        0,
+    )
+
+    salary["npsEmployer"] = _first_present(
+        salary.get("npsEmployer"),
+        salary.get("employerNps"),
+        salary.get("employerNPS"),
+        profile.get("npsEmployer"),
+        profile.get("employerNps"),
+        profile.get("employerNPS"),
+        0,
+    )
+
+    salary["grossEarning"] = _first_present(
+        salary.get("grossEarning"),
+        salary.get("grossSalary"),
+        salary.get("annualGross"),
+        salary.get("annualGrossSalary"),
+        profile.get("grossEarning"),
+        profile.get("grossSalary"),
+        profile.get("annualGross"),
+        0,
+    )
+
+    salary["rentPaid"] = _first_present(
+        salary.get("rentPaid"),
+        salary.get("annualRentPaid"),
+        tax.get("rentPaid"),
+        profile.get("rentPaid"),
+        profile.get("annualRentPaid"),
+        0,
+    )
+
+    salary["profTax"] = _first_present(
+        salary.get("profTax"),
+        salary.get("professionalTax"),
+        tax.get("professionalTax"),
+        0,
+    )
+
+    salary["incomeTax"] = _first_present(
+        salary.get("incomeTax"),
+        salary.get("tds"),
+        tax.get("taxPaid"),
+        0,
+    )
+
+    return profile
+
+
+def _missing_core_fields(profile):
+    profile = align_profile_field_aliases(profile)
+    basics = profile.get("basics", {}) or {}
+    income = profile.get("income", {}) or {}
+
+    missing = []
+    if _num(basics.get("age")) <= 0:
+        missing.append("Current age")
+    if _num(basics.get("desiredRetirementAge")) <= _num(basics.get("age")):
+        missing.append("Desired retirement age greater than current age")
+    if _num(income.get("monthlyAfterTax")) <= 0:
+        missing.append("Monthly after-tax income")
+    return missing
+
+
+def _has_any_salary_detail(profile):
+    profile = align_profile_field_aliases(profile)
+    salary = profile.get("salary", {}) or {}
+    keys = [
+        "basicSalary",
+        "hraReceived",
+        "epfContribution",
+        "grossEarning",
+        "monthlyBasic",
+        "monthlyHra",
+        "monthlyEmployeeEpf",
+        "annualGross",
+        "bonusVariablePay",
+        "npsEmployer",
+    ]
+    return any(_num(salary.get(key)) > 0 for key in keys)
+
+
+def _missing_salaried_tax_fields(profile):
+    profile = align_profile_field_aliases(profile)
+    basics = profile.get("basics", {}) or {}
+    salary = profile.get("salary", {}) or {}
+
+    if basics.get("employmentType") != "salaried":
+        return []
+
+    if not _has_any_salary_detail(profile):
+        return []
+
+    missing = []
+    if _num(salary.get("basicSalary")) <= 0 and _num(salary.get("monthlyBasic")) <= 0:
+        missing.append("Basic Salary")
+    if _num(salary.get("hraReceived")) <= 0 and _num(salary.get("monthlyHra")) <= 0:
+        missing.append("HRA received")
+    if _num(salary.get("epfContribution")) <= 0 and _num(salary.get("monthlyEmployeeEpf")) <= 0:
+        missing.append("E-PF Contribution")
+    return missing
+
+
+def validate_profile(p):
+    p = align_profile_field_aliases(p)
+    errors = []
+
+    missing = _missing_core_fields(p)
+    if missing:
+        errors.append("Missing required fields: " + ", ".join(missing) + ".")
+
+    salary_missing = _missing_salaried_tax_fields(p)
+    if salary_missing:
+        errors.append("For salaried tax calculation, please enter: " + ", ".join(salary_missing) + ".")
+
+    if errors:
+        raise UserInputError(" ".join(errors))
+# ===== End SmartFinly field mapping / validation hotfix v2 =====
+
