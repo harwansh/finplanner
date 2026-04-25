@@ -1277,15 +1277,29 @@ function futureValue(present, years, inflationPct) {
 }
 
 function parseIndianNumber(value) {
-  const digits = String(value || '').replace(/[^0-9]/g, '')
-  if (!digits) return ''
-  return Number(digits)
+  const raw = String(value || '').replace(/,/g, '').trim()
+  if (!raw) return ''
+
+  // Keep only digits and the first decimal point.
+  const cleaned = raw
+    .replace(/[^0-9.]/g, '')
+    .replace(/(\\..*)\\./g, '$1')
+
+  if (!cleaned || cleaned === '.') return ''
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : ''
 }
 
 function formatIndianNumber(value) {
+  if (value === '' || value == null) return ''
   const n = Number(value)
   if (!Number.isFinite(n)) return ''
-  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
+
+  const hasDecimals = String(value).includes('.') && !Number.isInteger(n)
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: 2,
+  }).format(n)
 }
 
 function toNumber(value) {
