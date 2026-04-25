@@ -41,6 +41,26 @@ const investmentOptions = [
   'Real estate', 'Gold', 'Not sure'
 ]
 
+const assetLabels = {
+  bankSavings: 'Bank savings',
+  fixedDeposits: 'Fixed deposits',
+  mutualFunds: 'Mutual funds',
+  stocks: 'Stocks',
+  epfPpfNps: 'EPF / PPF / NPS',
+  gold: 'Gold',
+  realEstate: 'Real estate',
+  otherAssets: 'Other assets',
+}
+
+const liabilityLabels = {
+  homeLoan: 'Home loan',
+  personalLoan: 'Personal loan',
+  educationLoan: 'Education loan',
+  creditCard: 'Credit card',
+  vehicleLoan: 'Vehicle loan',
+  otherDebt: 'Other debt',
+}
+
 export default function Home() {
   const [data, setData] = useState(empty)
   const [busy, setBusy] = useState(false)
@@ -52,15 +72,12 @@ export default function Home() {
     setData(d => ({ ...d, [section]: { ...d[section], [field]: val } }))
   const setTop = (field, val) => setData(d => ({ ...d, [field]: val }))
   const num = v => v === '' || v == null ? '' : Number(v)
-
   const preview = getCashflowPreview(data)
 
   const togglePref = (option) => {
     setData(d => {
       const cur = d.investmentPreferences
-      const next = cur.includes(option)
-        ? cur.filter(x => x !== option)
-        : [...cur, option]
+      const next = cur.includes(option) ? cur.filter(x => x !== option) : [...cur, option]
       return { ...d, investmentPreferences: next }
     })
   }
@@ -91,27 +108,27 @@ export default function Home() {
       <form onSubmit={submit}>
         <Section title="1. About you">
           <Row>
-            <Field label="Current age">
-              <input type="number" value={data.basics.age}
+            <Field label="Current age" required>
+              <input type="number" min="18" max="100" value={data.basics.age}
                 onChange={e=>set('basics','age',num(e.target.value))} required />
             </Field>
-            <Field label="Desired retirement age">
-              <input type="number" value={data.basics.desiredRetirementAge}
-                onChange={e=>set('basics','desiredRetirementAge',num(e.target.value))} />
+            <Field label="Desired retirement age" required>
+              <input type="number" min="35" max="100" value={data.basics.desiredRetirementAge}
+                onChange={e=>set('basics','desiredRetirementAge',num(e.target.value))} required />
             </Field>
-            <Field label="Country">
+            <Field label="Country" required>
               <input value={data.basics.country}
-                onChange={e=>set('basics','country',e.target.value)} />
+                onChange={e=>set('basics','country',e.target.value)} required />
             </Field>
-            <Field label="City tier">
+            <Field label="City tier" required>
               <select value={data.basics.cityTier}
-                onChange={e=>set('basics','cityTier',e.target.value)}>
+                onChange={e=>set('basics','cityTier',e.target.value)} required>
                 <option>Tier 1</option><option>Tier 2</option><option>Tier 3</option>
               </select>
             </Field>
           </Row>
           <Row>
-            <Field label="Marital status">
+            <Field label="Marital status" required>
               <select value={data.basics.maritalStatus}
                 onChange={e=>{
                   const maritalStatus = e.target.value
@@ -123,32 +140,32 @@ export default function Home() {
                       kids: maritalStatus === 'married' ? d.basics.kids : [],
                     }
                   }))
-                }}>
+                }} required>
                 <option value="single">Single</option>
                 <option value="married">Married</option>
                 <option value="divorced">Divorced</option>
                 <option value="widowed">Widowed</option>
               </select>
             </Field>
-            <Field label="Employment">
+            <Field label="Employment" required>
               <select value={data.basics.employmentType}
-                onChange={e=>set('basics','employmentType',e.target.value)}>
+                onChange={e=>set('basics','employmentType',e.target.value)} required>
                 <option value="salaried">Salaried</option>
                 <option value="business">Business owner</option>
                 <option value="freelance">Freelance / contractor</option>
               </select>
             </Field>
-            <Field label="Tax regime">
+            <Field label="Tax regime" required>
               <select value={data.basics.taxRegime}
-                onChange={e=>set('basics','taxRegime',e.target.value)}>
+                onChange={e=>set('basics','taxRegime',e.target.value)} required>
                 <option value="new">New</option>
                 <option value="old">Old</option>
                 <option value="unknown">Don't know</option>
               </select>
             </Field>
-            <Field label="Own a home?">
+            <Field label="Own a home?" required>
               <select value={data.basics.ownsHouse ? 'yes' : 'no'}
-                onChange={e=>set('basics','ownsHouse',e.target.value === 'yes')}>
+                onChange={e=>set('basics','ownsHouse',e.target.value === 'yes')} required>
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
               </select>
@@ -161,7 +178,7 @@ export default function Home() {
           )}
 
           <Row>
-            <Field label="Parents financially dependent?">
+            <Field label="Parents financially dependent?" required>
               <select value={data.basics.parentsDependent ? 'yes' : 'no'}
                 onChange={e=>{
                   const parentsDependent = e.target.value === 'yes'
@@ -175,13 +192,13 @@ export default function Home() {
                         : 0,
                     }
                   }))
-                }}>
+                }} required>
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
               </select>
             </Field>
             {data.basics.parentsDependent && (
-              <Field label="Number of dependent parents">
+              <Field label="Number of dependent parents" required>
                 <input type="number" min="1" max="2" value={data.basics.dependentParentsCount}
                   onChange={e=>set('basics','dependentParentsCount',num(e.target.value))} required />
               </Field>
@@ -189,88 +206,90 @@ export default function Home() {
           </Row>
         </Section>
 
-        <Section title="2. Income (₹ per month unless noted)">
+        <Section title="2. Income">
           <Row>
-            <Field label="Monthly income (after tax)">
-              <input type="number" value={data.income.monthlyAfterTax}
-                onChange={e=>set('income','monthlyAfterTax',num(e.target.value))} required />
+            <Field label="Monthly income after tax" required hint="Example: 2,00,000">
+              <MoneyInput value={data.income.monthlyAfterTax}
+                onChange={v=>set('income','monthlyAfterTax',v)} required />
             </Field>
-            <Field label="Annual bonus / variable">
-              <input type="number" value={data.income.bonusAnnual}
-                onChange={e=>set('income','bonusAnnual',num(e.target.value))} />
+            <Field label="Annual bonus / variable" hint="Enter 0 if none">
+              <MoneyInput value={data.income.bonusAnnual}
+                onChange={v=>set('income','bonusAnnual',v)} />
             </Field>
-            <Field label="Other monthly (rent, dividends)">
-              <input type="number" value={data.income.otherMonthly}
-                onChange={e=>set('income','otherMonthly',num(e.target.value))} />
+            <Field label="Other monthly income" hint="Rent, dividends etc.">
+              <MoneyInput value={data.income.otherMonthly}
+                onChange={v=>set('income','otherMonthly',v)} />
             </Field>
-            <Field label="Expected income growth % / yr">
-              <input type="number" value={data.income.expectedGrowthPct}
-                onChange={e=>set('income','expectedGrowthPct',num(e.target.value))} />
+            <Field label="Expected income growth % / yr" required>
+              <input type="number" min="0" max="100" step="0.1" value={data.income.expectedGrowthPct}
+                onChange={e=>set('income','expectedGrowthPct',num(e.target.value))} required />
             </Field>
           </Row>
         </Section>
 
-        <Section title="3. Expenses (₹ per month unless noted)">
+        <Section title="3. Expenses">
           <Row>
-            <Field label="Fixed (rent, school)">
-              <input type="number" value={data.expenses.fixed}
-                onChange={e=>set('expenses','fixed',num(e.target.value))} />
+            <Field label="Fixed monthly expenses" required hint="Rent, school, utilities">
+              <MoneyInput value={data.expenses.fixed}
+                onChange={v=>set('expenses','fixed',v)} required />
             </Field>
-            <Field label="Variable (food, travel)">
-              <input type="number" value={data.expenses.variable}
-                onChange={e=>set('expenses','variable',num(e.target.value))} />
+            <Field label="Variable monthly expenses" required hint="Enter 0 if none">
+              <MoneyInput value={data.expenses.variable}
+                onChange={v=>set('expenses','variable',v)} required />
             </Field>
-            <Field label="Annual lump sums (insurance, vacations) / yr">
-              <input type="number" value={data.expenses.annual}
-                onChange={e=>set('expenses','annual',num(e.target.value))} />
+            <Field label="Annual lump sums" required hint="Insurance, vacations / year. Enter 0 if none">
+              <MoneyInput value={data.expenses.annual}
+                onChange={v=>set('expenses','annual',v)} required />
             </Field>
-            <Field label="Total monthly EMIs">
-              <input type="number" value={data.monthlyEmi}
-                onChange={e=>setTop('monthlyEmi',num(e.target.value))} />
+            <Field label="Total monthly EMIs" required hint="Enter 0 if none">
+              <MoneyInput value={data.monthlyEmi}
+                onChange={v=>setTop('monthlyEmi',v)} required />
             </Field>
           </Row>
           <CashflowPreview preview={preview} />
         </Section>
 
-        <Section title="4. Assets (current value, ₹)">
+        <Section title="4. Assets">
+          <div className="section-note">Current value in ₹. Optional fields can stay blank.</div>
           <Row>
             {Object.keys(empty.assets).map(k => (
-              <Field key={k} label={prettify(k)}>
-                <input type="number" value={data.assets[k]}
-                  onChange={e=>set('assets',k,num(e.target.value))} />
+              <Field key={k} label={assetLabels[k] || prettify(k)}>
+                <MoneyInput value={data.assets[k]}
+                  onChange={v=>set('assets',k,v)} />
               </Field>
             ))}
-            <Field label="Emergency fund (separate)">
-              <input type="number" value={data.emergencyFund}
-                onChange={e=>setTop('emergencyFund',num(e.target.value))} />
+            <Field label="Emergency fund" required hint="Separate emergency fund. Enter 0 if none">
+              <MoneyInput value={data.emergencyFund}
+                onChange={v=>setTop('emergencyFund',v)} required />
             </Field>
           </Row>
         </Section>
 
-        <Section title="5. Liabilities (outstanding balance, ₹)">
+        <Section title="5. Liabilities">
+          <div className="section-note">Outstanding balance in ₹. Leave blank or enter 0 if not applicable.</div>
           <Row>
             {Object.keys(empty.liabilities).map(k => (
-              <Field key={k} label={prettify(k)}>
-                <input type="number" value={data.liabilities[k]}
-                  onChange={e=>set('liabilities',k,num(e.target.value))} />
+              <Field key={k} label={liabilityLabels[k] || prettify(k)}>
+                <MoneyInput value={data.liabilities[k]}
+                  onChange={v=>set('liabilities',k,v)} />
               </Field>
             ))}
           </Row>
         </Section>
 
-        <Section title="6. Insurance (sum assured, ₹)">
+        <Section title="6. Insurance">
           <Row>
-            <Field label="Life cover">
-              <input type="number" value={data.insurance.life}
-                onChange={e=>set('insurance','life',num(e.target.value))} />
+            <Field label="Life cover" hint="Sum assured in ₹">
+              <MoneyInput value={data.insurance.life}
+                onChange={v=>set('insurance','life',v)} />
             </Field>
-            <Field label="Health cover">
-              <input type="number" value={data.insurance.health}
-                onChange={e=>set('insurance','health',num(e.target.value))} />
+            <Field label="Health cover" hint="Family floater / individual cover">
+              <MoneyInput value={data.insurance.health}
+                onChange={v=>set('insurance','health',v)} />
             </Field>
             <Field label="Critical illness cover">
-              <input type="number" value={data.insurance.criticalIllness}
-                onChange={e=>set('insurance','criticalIllness',num(e.target.value))} />
+              <MoneyInput value={data.insurance.criticalIllness}
+                onChange={v=>set('insurance','criticalIllness',v)} />
             </Field>
           </Row>
         </Section>
@@ -279,7 +298,7 @@ export default function Home() {
           <div className="muted small" style={{marginBottom:6}}>Risk appetite</div>
           <div className="radio-row">
             {['conservative','moderate','aggressive'].map(r => (
-              <label key={r} className={`radio ${data.risk === r ? 'selected' : ''}`}>
+              <label key={r} className={`radio chip ${data.risk === r ? 'selected' : ''}`}>
                 <input type="radio" checked={data.risk===r}
                   onChange={()=>setData(d=>({...d, risk:r}))} /> {r}
               </label>
@@ -291,7 +310,7 @@ export default function Home() {
           </div>
           <div className="checkbox-row">
             {investmentOptions.map(opt => (
-              <label key={opt} className="radio">
+              <label key={opt} className={`radio chip ${data.investmentPreferences.includes(opt) ? 'selected' : ''}`}>
                 <input type="checkbox"
                   checked={data.investmentPreferences.includes(opt)}
                   onChange={()=>togglePref(opt)} /> {opt}
@@ -300,18 +319,18 @@ export default function Home() {
           </div>
         </Section>
 
-        <Section title="8. Future plans (optional, in your own words)">
-          <Field label="Expected one-time future expenses (e.g., 'kid's MBA in 2030')">
+        <Section title="8. Future plans">
+          <Field label="Expected one-time future expenses" hint="Example: kid's MBA in 2038, car in 5 years, wedding in 2029">
             <textarea value={data.oneTimeFutureExpenses}
               onChange={e=>setTop('oneTimeFutureExpenses', e.target.value)} />
           </Field>
-          <Field label="Existing financial goals (e.g., 'buy a house in 5 years')">
+          <Field label="Existing financial goals" hint="Only goals entered here will be treated as user-entered goals">
             <textarea value={data.existingGoals}
               onChange={e=>setTop('existingGoals', e.target.value)} />
           </Field>
         </Section>
 
-        {err && <div className="err">{err}</div>}
+        {err && <div className="err error-block">{err}</div>}
 
         <div className="actions">
           <button type="submit" disabled={busy} className="primary">
@@ -415,23 +434,48 @@ function KidsEditor({ kids, onChange }) {
             <input type="number" min="0" value={kid.age}
               onChange={e=>update(i,'age', e.target.value === '' ? '' : Number(e.target.value))} />
           </Field>
-          <button type="button" onClick={()=>remove(i)} className="link">Remove</button>
+          <button type="button" onClick={()=>remove(i)} className="link remove-btn">Remove</button>
         </Row>
       ))}
-      <button type="button" onClick={add} className="link">+ Add child</button>
+      <button type="button" onClick={add} className="link add-btn">+ Add child</button>
+    </div>
+  )
+}
+
+function MoneyInput({ value, onChange, required = false, placeholder = '0' }) {
+  const displayValue = value === '' || value == null ? '' : formatIndianNumber(value)
+
+  return (
+    <div className="money-input">
+      <span className="currency-prefix">₹</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        value={displayValue}
+        placeholder={placeholder}
+        required={required}
+        onChange={e => onChange(parseIndianNumber(e.target.value))}
+        onBlur={e => onChange(parseIndianNumber(e.target.value))}
+      />
     </div>
   )
 }
 
 function CashflowPreview({ preview }) {
+  const isNegative = preview.monthlySurplus < 0
   return (
-    <div className="muted small" style={{marginTop: 10}}>
-      Monthly expense preview: fixed {fmt(preview.fixed)}
-      {' '}+ variable {fmt(preview.variable)}
-      {' '}+ annual prorated {fmt(preview.annualProrated)}
-      {' '}+ EMI {fmt(preview.emi)}
-      {' '}= {fmt(preview.monthlyExpenses)}.
-      {' '}Estimated surplus: {fmt(preview.monthlySurplus)}.
+    <div className={`cashflow-preview ${isNegative ? 'danger' : 'success'}`}>
+      <div className="cashflow-title">Monthly cash-flow preview</div>
+      <div className="cashflow-grid">
+        <span>Fixed: <strong>{fmt(preview.fixed)}</strong></span>
+        <span>Variable: <strong>{fmt(preview.variable)}</strong></span>
+        <span>Annual / month: <strong>{fmt(preview.annualProrated)}</strong></span>
+        <span>EMI: <strong>{fmt(preview.emi)}</strong></span>
+      </div>
+      <div className="cashflow-total">
+        Expenses: <strong>{fmt(preview.monthlyExpenses)}</strong> · Surplus: <strong>{fmt(preview.monthlySurplus)}</strong>
+      </div>
     </div>
   )
 }
@@ -443,8 +487,12 @@ const Section = ({ title, children }) => (
   </section>
 )
 const Row = ({ children }) => <div className="row">{children}</div>
-const Field = ({ label, children }) => (
-  <label className="field"><span>{label}</span>{children}</label>
+const Field = ({ label, children, required = false, hint }) => (
+  <label className="field">
+    <span>{label}{required && <em className="required">*</em>}</span>
+    {children}
+    {hint && <small>{hint}</small>}
+  </label>
 )
 
 function cleanProfile(profile) {
@@ -467,6 +515,9 @@ function cleanProfile(profile) {
 }
 
 function validate(profile) {
+  if (Number(profile.basics.desiredRetirementAge) <= Number(profile.basics.age)) {
+    return 'Desired retirement age must be greater than current age.'
+  }
   if (profile.basics.parentsDependent && Number(profile.basics.dependentParentsCount) < 1) {
     return 'Please enter at least 1 dependent parent, or select "No" for parent dependency.'
   }
@@ -497,6 +548,18 @@ function getCashflowPreview(profile) {
     monthlyExpenses,
     monthlySurplus: monthlyIncome - monthlyExpenses,
   }
+}
+
+function parseIndianNumber(value) {
+  const digits = String(value || '').replace(/[^0-9]/g, '')
+  if (!digits) return ''
+  return Number(digits)
+}
+
+function formatIndianNumber(value) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return ''
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n)
 }
 
 function toNumber(value) {
