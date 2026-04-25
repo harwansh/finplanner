@@ -202,8 +202,20 @@ export default function Home() {
   )
   const currentIndex = tabs.findIndex(([key]) => key === activeTab)
 
-  const goNext = () => setActiveTab(tabs[Math.min(currentIndex + 1, tabs.length - 1)][0])
-  const goBack = () => setActiveTab(tabs[Math.max(currentIndex - 1, 0)][0])
+  const goNext = () => {
+    const tabError = validateTab(activeTab, data)
+    if (tabError) {
+      setErr(tabError)
+      return
+    }
+    setErr('')
+    setActiveTab(tabs[Math.min(currentIndex + 1, tabs.length - 1)][0])
+  }
+
+  const goBack = () => {
+    setErr('')
+    setActiveTab(tabs[Math.max(currentIndex - 1, 0)][0])
+  }
 
   const submit = async (e) => {
     e.preventDefault()
@@ -968,6 +980,104 @@ const Field = ({ label, children, required = false, hint }) => (
     {hint && <small>{hint}</small>}
   </label>
 )
+
+function validateTab(tab, profile) {
+  switch (tab) {
+    case 'profile':
+      return validateProfileTab(profile)
+    case 'salary':
+      return validateSalaryCashflowTab(profile)
+    case 'debt':
+      return validateDebtTab(profile)
+    case 'insurance':
+      return ''
+    case 'investments':
+      return ''
+    case 'goals':
+      return validateGoalsTab(profile)
+    case 'tax':
+      return ''
+    case 'review':
+      return validate(profile)
+    default:
+      return ''
+  }
+}
+
+function validateProfileTab(profile) {
+  if (!Number(profile.basics.age) || Number(profile.basics.age) < 18) {
+    return 'Please enter a valid current age before continuing.'
+  }
+  if (!Number(profile.basics.desiredRetirementAge)) {
+    return 'Please enter desired retirement age before continuing.'
+  }
+  if (Number(profile.basics.desiredRetirementAge) <= Number(profile.basics.age)) {
+    return 'Desired retirement age must be greater than current age.'
+  }
+  if (!String(profile.basics.country || '').trim()) {
+    return 'Please enter country before continuing.'
+  }
+  if (!profile.basics.cityTier) {
+    return 'Please select city type before continuing.'
+  }
+  if (!profile.basics.maritalStatus) {
+    return 'Please select marital status before continuing.'
+  }
+  if (!profile.basics.employmentType) {
+    return 'Please select employment type before continuing.'
+  }
+  if (profile.basics.parentsDependent && Number(profile.basics.dependentParentsCount) < 1) {
+    return 'Please enter at least 1 dependent parent, or select "No" for parent dependency.'
+  }
+  const partialKid = (profile.basics.kids || []).find(kid => Boolean(kid.name?.trim()) !== (kid.age !== ''))
+  if (profile.basics.maritalStatus === 'married' && partialKid) {
+    return 'Please enter both name and age for each child, or remove the incomplete child row.'
+  }
+  return ''
+}
+
+function validateSalaryCashflowTab(profile) {
+  if (!Number(profile.income.monthlyAfterTax) || Number(profile.income.monthlyAfterTax) <= 0) {
+    return 'Please enter monthly income after tax before continuing.'
+  }
+  if (profile.expenses.fixed === '' || profile.expenses.fixed == null) {
+    return 'Please enter fixed monthly expenses. Enter 0 if not applicable.'
+  }
+  if (profile.expenses.variable === '' || profile.expenses.variable == null) {
+    return 'Please enter variable monthly expenses. Enter 0 if not applicable.'
+  }
+  if (profile.expenses.annual === '' || profile.expenses.annual == null) {
+    return 'Please enter annual lump-sum expenses. Enter 0 if not applicable.'
+  }
+  if (profile.monthlyEmi === '' || profile.monthlyEmi == null) {
+    return 'Please enter total monthly EMIs. Enter 0 if not applicable.'
+  }
+  const preview = getCashflowPreview(profile)
+  if (!Number.isFinite(Number(preview.monthlySurplus))) {
+    return 'Please check income and expense values before continuing.'
+  }
+  return ''
+}
+
+function validateDebtTab(profile) {
+  if (profile.emergencyFund === '' || profile.emergencyFund == null) {
+    return 'Please enter emergency fund amount. Enter 0 if none.'
+  }
+  return ''
+}
+
+function validateGoalsTab(profile) {
+  const badGoal = (profile.goals || []).find(goal => {
+    const hasAny = goal.name?.trim() || goal.presentCost !== '' || goal.years !== ''
+    if (!hasAny) return false
+    return !goal.name?.trim() || !Number(goal.presentCost) || !Number(goal.years)
+  })
+
+  if (badGoal) {
+    return 'Please complete each added goal with name, cost today and years to goal, or remove the incomplete goal.'
+  }
+  return ''
+}
 
 function validate(profile) {
   if (Number(profile.basics.desiredRetirementAge) <= Number(profile.basics.age)) {
