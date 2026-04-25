@@ -160,6 +160,32 @@ def normalize_profile(profile):
             "expectedReturnPct": _num(inv.get("expectedReturnPct")) or DEFAULT_RETURNS.get(category, 8),
             "goal": inv.get("goal") or infer_goal_from_category(category),
         })
+    salary = cleaned.get("salary", {}) or {}
+    employee_epf_monthly = _num(salary.get("monthlyEmployeeEpf"))
+    employer_nps_monthly = _num(salary.get("monthlyEmployerNps"))
+
+    if employee_epf_monthly > 0:
+        normalized_investments.append({
+            "name": "Auto EPF from salary",
+            "category": "epf",
+            "monthlyAmount": employee_epf_monthly,
+            "currentValue": 0,
+            "expectedReturnPct": DEFAULT_RETURNS.get("epf", 8.25),
+            "goal": "retirement",
+            "source": "salary",
+        })
+
+    if employer_nps_monthly > 0:
+        normalized_investments.append({
+            "name": "Auto employer NPS from salary",
+            "category": "nps",
+            "monthlyAmount": employer_nps_monthly,
+            "currentValue": 0,
+            "expectedReturnPct": DEFAULT_RETURNS.get("nps", 10),
+            "goal": "retirement",
+            "source": "salary",
+        })
+
     cleaned["investments"] = normalized_investments
 
     normalized_goals = []

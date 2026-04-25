@@ -372,3 +372,204 @@ button.primary:hover, .primary:hover {
   .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .review-grid { grid-template-columns: 1fr; }
 }
+
+/* FinOS readability override */
+:root {
+  --readable-text: #0f172a;
+  --readable-muted: #475569;
+  --readable-card: #ffffff;
+  --readable-border: #d8e0ec;
+  --readable-blue: #1d4ed8;
+  --readable-purple: #6d28d9;
+  --readable-green: #047857;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Noto Sans", sans-serif;
+  color: var(--readable-text);
+  font-size: 16px;
+  line-height: 1.5;
+  background: linear-gradient(135deg, #eef5ff 0%, #f7f2ff 42%, #fff8ed 100%);
+}
+
+header {
+  background: #111827;
+  color: #ffffff;
+}
+
+header .muted {
+  color: #dbeafe;
+}
+
+.card {
+  background: var(--readable-card);
+  border: 1px solid var(--readable-border);
+  color: var(--readable-text);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.hero-card,
+.card:first-of-type {
+  background: linear-gradient(135deg, #1e3a8a 0%, #5b21b6 56%, #9d174d 100%);
+  color: #ffffff;
+}
+
+.hero-card .muted,
+.card:first-of-type .muted {
+  color: #eef2ff;
+}
+
+.card.section h3 {
+  color: #1e293b;
+  background: #eef2ff;
+  border: 1px solid #dbeafe;
+}
+
+.section-note {
+  color: #1e293b;
+  background: #f8fafc;
+  border: 1px solid #dbeafe;
+  font-weight: 500;
+}
+
+.field span {
+  color: #1e293b;
+  font-weight: 750;
+}
+
+.field small,
+.muted,
+.small {
+  color: var(--readable-muted);
+}
+
+input,
+select,
+textarea {
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--readable-blue);
+  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.14);
+}
+
+.money-input .currency-prefix {
+  color: #334155;
+}
+
+.tab {
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  font-weight: 800;
+}
+
+.tab span {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.tab.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1d4ed8, #6d28d9);
+  box-shadow: 0 10px 24px rgba(29, 78, 216, 0.22);
+}
+
+.tab.active span {
+  background: rgba(255,255,255,0.24);
+  color: #ffffff;
+}
+
+.tab.done {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+button.primary,
+.primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1d4ed8, #6d28d9);
+  font-weight: 800;
+}
+
+button.link,
+.link {
+  color: #1d4ed8;
+  font-weight: 750;
+}
+
+.kpi {
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+}
+
+.kpi-label {
+  color: #475569;
+  font-weight: 800;
+}
+
+.kpi-value {
+  color: #0f172a;
+}
+
+.kpi.big {
+  background: linear-gradient(135deg, #1e40af, #5b21b6);
+}
+
+.kpi.big .kpi-label,
+.kpi.big .kpi-value {
+  color: #ffffff;
+}
+
+.cashflow-preview.success {
+  color: #064e3b;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.cashflow-preview.danger {
+  color: #7f1d1d;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.markdown {
+  color: #111827;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  color: #1e3a8a;
+}
+
+.markdown table {
+  background: #ffffff;
+}
+
+.markdown th {
+  color: #1e293b;
+  background: #e0e7ff;
+}
+
+.markdown td {
+  color: #111827;
+}

@@ -75,8 +75,8 @@ const salaryLabels = {
 }
 
 const taxLabels = {
-  deduction80C: '80C investments',
-  nps80CCD1B: 'NPS 80CCD(1B)',
+  deduction80C: '80C investments excluding salary EPF auto-added',
+  nps80CCD1B: 'Extra self NPS 80CCD(1B), employer NPS auto-added',
   health80D: 'Health insurance 80D',
   homeLoanInterest24B: 'Home loan interest 24(b)',
   homeLoan80EEA: 'Affordable housing 80EEA',
@@ -307,7 +307,7 @@ export default function Home() {
           <>
             <Section title="2. Salary structure">
               <div className="section-note">
-                Based on your tax workbook: Basic, HRA, LTA, employer NPS, EPF, professional tax and rent help calculate old vs new regime more accurately. Use annual gross override only if your payslip gives one final annual number.
+                Based on your tax workbook: Basic, HRA, LTA, employer NPS, employee EPF, professional tax and rent help calculate old vs new regime more accurately. Employee EPF is auto-added to 80C and retirement investments. Employer NPS is auto-added to tax deductions and retirement investments. Use annual gross override only if your payslip gives one final annual number.
               </div>
               <Row>
                 {Object.keys(data.salary).map(k => (
@@ -323,6 +323,8 @@ export default function Home() {
                   <span>Annual gross used: <strong>{fmt(salaryPreview.annualGrossUsed)}</strong></span>
                   <span>Annual HRA received: <strong>{fmt(salaryPreview.hraAnnual)}</strong></span>
                   <span>Annual rent paid: <strong>{fmt(salaryPreview.rentAnnual)}</strong></span>
+                  <span>Employee EPF auto 80C: <strong>{fmt(salaryPreview.employeeEpfAnnual)}</strong></span>
+                  <span>Employer NPS auto retirement: <strong>{fmt(salaryPreview.employerNpsAnnual)}</strong></span>
                 </div>
               </div>
             </Section>
@@ -755,6 +757,30 @@ function cleanProfile(profile) {
       goal: inv.goal || 'wealth',
     }))
 
+  if (toNumber(cleaned.salary?.monthlyEmployeeEpf) > 0) {
+    cleaned.investments.push({
+      name: 'Auto EPF from salary',
+      category: 'epf',
+      currentValue: 0,
+      monthlyAmount: toNumber(cleaned.salary.monthlyEmployeeEpf),
+      expectedReturnPct: categoryReturnMap.epf || 8.25,
+      goal: 'retirement',
+      source: 'salary',
+    })
+  }
+
+  if (toNumber(cleaned.salary?.monthlyEmployerNps) > 0) {
+    cleaned.investments.push({
+      name: 'Auto employer NPS from salary',
+      category: 'nps',
+      currentValue: 0,
+      monthlyAmount: toNumber(cleaned.salary.monthlyEmployerNps),
+      expectedReturnPct: categoryReturnMap.nps || 10,
+      goal: 'retirement',
+      source: 'salary',
+    })
+  }
+
   cleaned.goals = cleaned.goals
     .filter(goal => goal.name?.trim() && toNumber(goal.presentCost) > 0 && Number(goal.years) > 0)
     .map(goal => ({
@@ -794,6 +820,8 @@ function getSalaryPreview(profile) {
     annualGrossUsed: toNumber(s.annualGross) || annualComponents,
     hraAnnual: toNumber(s.monthlyHra) * 12,
     rentAnnual: toNumber(s.rentPaidMonthly) * 12,
+    employeeEpfAnnual: toNumber(s.monthlyEmployeeEpf) * 12,
+    employerNpsAnnual: toNumber(s.monthlyEmployerNps) * 12,
   }
 }
 
