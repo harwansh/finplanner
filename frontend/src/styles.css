@@ -3054,3 +3054,99 @@ form > .error-block,
   }
 }
 
+
+/* ===== SmartFinly legal/compliance patch ===== */
+.legal-compliance-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 18px;
+  align-items: center;
+  margin: 18px 0;
+  padding: 18px !important;
+  border-color: rgba(255, 209, 112, 0.34) !important;
+  background:
+    radial-gradient(circle at 95% 0%, rgba(244, 213, 111, 0.16), transparent 16rem),
+    linear-gradient(135deg, rgba(20, 21, 28, 0.96), rgba(9, 10, 14, 0.96)) !important;
+}
+
+.legal-compliance-card strong {
+  display: block;
+  color: #fff1a8 !important;
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.legal-compliance-card p {
+  margin: 0;
+  color: #e0d3ad !important;
+  line-height: 1.58;
+}
+
+.legal-compliance-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.legal-compliance-grid span {
+  padding: 9px 10px;
+  border-radius: 999px;
+  color: #fff4cf !important;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 850;
+  background: rgba(244, 213, 111, 0.10);
+  border: 1px solid rgba(244, 213, 111, 0.20);
+}
+
+.legal-consent-box {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 18px;
+  margin: 16px 0;
+  border-radius: 18px;
+  border: 1px solid rgba(244, 213, 111, 0.26);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.025)),
+    rgba(12, 13, 18, 0.94);
+  color: #fff4cf !important;
+  box-shadow: 0 16px 42px rgba(0,0,0,0.26);
+}
+
+.legal-consent-box input {
+  width: 20px !important;
+  height: 20px !important;
+  min-height: 20px !important;
+  margin-top: 3px;
+  accent-color: #f4d56f;
+  flex: 0 0 auto;
+}
+
+.legal-consent-box span {
+  color: #fff4cf !important;
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.legal-footer-note {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  color: #d8ceb3 !important;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(244, 213, 111, 0.14);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+@media (max-width: 800px) {
+  .legal-compliance-card {
+    grid-template-columns: 1fr;
+  }
+
+  .legal-compliance-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

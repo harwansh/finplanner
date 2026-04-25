@@ -378,12 +378,53 @@ function InvestorDueDiligenceStrip() {
   )
 }
 
+
+function LegalComplianceNotice() {
+  return (
+    <div className="legal-compliance-card card">
+      <div>
+        <strong>Important legal notice</strong>
+        <p>
+          SmartFinly is an educational AI financial planning sample. It does not provide SEBI-registered
+          investment advice, research analyst recommendations, RBI-regulated lending, product execution,
+          portfolio management, tax filing, insurance broking, or guaranteed returns.
+        </p>
+      </div>
+      <div className="legal-compliance-grid">
+        <span>No buy/sell calls</span>
+        <span>No guaranteed returns</span>
+        <span>No product execution</span>
+        <span>No PAN/Aadhaar/bank data</span>
+      </div>
+    </div>
+  )
+}
+
+function LegalConsentBox({ accepted, onChange }) {
+  return (
+    <label className="legal-consent-box">
+      <input
+        type="checkbox"
+        checked={accepted}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span>
+        I understand this is educational AI-generated planning output only. It is not registered investment,
+        tax, legal, insurance, lending, or securities advice. I will not enter PAN, Aadhaar, bank account,
+        OTP, password, or other sensitive identifiers.
+      </span>
+    </label>
+  )
+}
+
+
 export default function Home() {
   const [data, setData] = useState(empty)
   const [activeTab, setActiveTab] = useState('profile')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [result, setResult] = useState(null)
+  const [legalAccepted, setLegalAccepted] = useState(false)
 
   const loadInvestorDemoProfile = () => {
     const clone = typeof structuredClone === 'function'
@@ -452,6 +493,12 @@ export default function Home() {
 
   const submit = async (e) => {
     e.preventDefault()
+    if (!legalAccepted) {
+      setErr('Please accept the educational-use legal notice before generating the plan.')
+      setResult(null)
+      return
+    }
+
     const validationError = validate(data)
     if (validationError) {
       setErr(validationError)
@@ -500,6 +547,8 @@ export default function Home() {
       <InvestorDueDiligenceStrip />
 
       <ComplianceBanner />
+
+      <LegalComplianceNotice />
 
       <form onSubmit={submit} autoComplete="off">
         <div className="tabs-card">
@@ -765,6 +814,8 @@ export default function Home() {
           </Section>
         )}
 
+        <LegalConsentBox accepted={legalAccepted} onChange={setLegalAccepted} />
+
         {err && <div className="err error-block">{err}</div>}
 
         <div className="actions">
@@ -778,6 +829,11 @@ export default function Home() {
           <span className="muted small">Nothing is saved. Refresh to start over.</span>
         </div>
       </form>
+
+      <div className="legal-footer-note">
+        SmartFinly output is an educational estimate. It is not SEBI/RBI/IRDAI-registered advice,
+        not tax filing, not product execution, and not a guarantee. Verify all actions with qualified professionals.
+      </div>
 
       <div ref={resultsRef}>
         {busy && (
