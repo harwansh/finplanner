@@ -23,3 +23,54 @@ applications:
             value: none
           - key: Content-Security-Policy
             value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.lambda-url.us-east-1.on.aws https://*.amazonaws.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+      - pattern: '**/*.html'
+        headers:
+          - key: Cache-Control
+            value: no-cache, no-store, must-revalidate
+      - pattern: 'assets/**/*'
+        headers:
+          - key: Cache-Control
+            value: public, max-age=31536000, immutable
+    redirects:
+      - source: /home
+        target: /learn
+        status: 301
+      - source: /home/
+        target: /learn
+        status: 301
+      - source: /planner
+        target: /index.html
+        status: 200
+      - source: /learn
+        target: /index.html
+        status: 200
+      - source: /privacy
+        target: /index.html
+        status: 200
+      - source: /terms
+        target: /index.html
+        status: 200
+      - source: /disclaimer
+        target: /index.html
+        status: 200
+      - source: /security
+        target: /index.html
+        status: 200
+      - source: /ai-financial-planner-india
+        target: /index.html
+        status: 200
+      - source: /salary-tax-planner-india
+        target: /index.html
+        status: 200
+      - source: /sip-goal-planner
+        target: /index.html
+        status: 200
+      - source: /retirement-planner-india
+        target: /index.html
+        status: 200
+      - source: /insurance-gap-calculator
+        target: /index.html
+        status: 200
+      - source: /<*>
+        target: /index.html
+        status: 404-200
