@@ -374,27 +374,18 @@ def normalize_profile(profile):
 
 
 def validate_profile(p):
+    p = align_profile_field_aliases(p)
+    missing = _missing_core_fields(p)
+    salary_missing = _missing_salaried_tax_fields(p)
+
     errors = []
-    basics = p.get("basics", {}) or {}
-    age = _int(basics.get("age"))
-    retirement_age = _int(basics.get("desiredRetirementAge"))
-    if age <= 0:
-        errors.append("Current age is required.")
-    if retirement_age <= age:
-        errors.append("Desired retirement age must be greater than current age.")
-    if _num(p.get("income", {}).get("monthlyAfterTax")) <= 0:
-        errors.append("Monthly after-tax income is required.")
-    if basics.get("employmentType") == "salaried":
-        s = p.get("salary", {}) or {}
-        if _num(s.get("basicSalary")) <= 0 and _num(s.get("monthlyBasic")) <= 0:
-            errors.append("Basic Salary is required for salaried tax calculation.")
-        if _num(s.get("hraReceived")) <= 0 and _num(s.get("monthlyHra")) <= 0:
-            errors.append("HRA received is required for salaried tax calculation.")
-        if _num(s.get("epfContribution")) <= 0 and _num(s.get("monthlyEmployeeEpf")) <= 0:
-            errors.append("E-PF Contribution is required for salaried tax calculation.")
+    if missing:
+        errors.append("Missing required fields: " + ", ".join(missing) + ".")
+    if salary_missing:
+        errors.append("For salaried tax calculation, please enter: " + ", ".join(salary_missing) + ".")
+
     if errors:
         raise UserInputError(" ".join(errors))
-
 
 def cashflow(p):
     inc = p.get("income", {}) or {}
@@ -770,10 +761,10 @@ def lambda_handler(event, context):
     except UserInputError as exc:
         if str(exc) == "__OPTIONS__":
             return {"statusCode": 204, "headers": CORS_HEADERS, "body": ""}
-        return _json_response(400, {"error": str(exc)})
+        return _json_response(400, {"error": str(exc), "code": "INPUT_VALIDATION_ERROR"})
     except Exception as exc:
         print("Unhandled SmartFinly error:", exc.__class__.__name__, str(exc)[:300])
-        return _json_response(500, {"error": "Internal error. Please try again later."})
+        return _json_response(500, {"error": "Internal error. Please try again later.", "code": "INTERNAL_ERROR"})
 
 # SAM template uses Handler: app.handler.
 # Keep this wrapper so Lambda Function URL can call the expected symbol.
