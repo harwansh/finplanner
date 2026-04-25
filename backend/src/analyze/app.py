@@ -1,4 +1,4 @@
-"POST /analyze - deterministic CFP-style financial planner with optional Bedrock recommendation notes."
+"POST /analyze - FinOS CFP engine: cashflow, tax, risk, goals, retirement, insurance, allocation."
 
 import copy
 import json
@@ -30,9 +30,42 @@ ASSUMPTIONS = {
     "lifeExpectancy": 90,
 }
 
-RETIREMENT_CATEGORIES = {"epf", "ppf", "nps", "retirementSip", "equityIndex", "equityLargeCap", "equityFlexiCap"}
-CHILD_CATEGORIES = {"childEducation"}
+RETIREMENT_CATEGORIES = {"epf", "ppf", "nps", "retirementSip", "equityIndex", "equityLargeCap", "equityFlexiCap", "nifty50"}
 LOW_RISK_CATEGORIES = {"fdRd", "debtFund", "liquidFund", "ppf", "epf"}
+GROWTH_CATEGORIES = {"momentum", "value", "midcap", "smallcap", "niftyNext50", "threeMStock", "multicap", "flexicap", "nifty50", "us500", "smallcase", "equityLargeCap", "equityMidCap", "equitySmallCap", "equityFlexiCap", "equityIndex"}
+
+DEFAULT_RETURNS = {
+    "momentum": 18,
+    "value": 17,
+    "midcap": 17,
+    "smallcap": 16,
+    "niftyNext50": 16,
+    "threeMStock": 18,
+    "multicap": 15,
+    "flexicap": 14,
+    "nifty50": 13,
+    "us500": 15,
+    "gold": 12,
+    "reitInvit": 12,
+    "equityLargeCap": 11,
+    "equityMidCap": 12,
+    "equitySmallCap": 13,
+    "equityFlexiCap": 11,
+    "equityIndex": 11,
+    "elss": 11,
+    "smallcase": 12,
+    "debtFund": 7,
+    "liquidFund": 5.5,
+    "hybridFund": 9,
+    "fdRd": 6.5,
+    "epf": 8.25,
+    "ppf": 7.1,
+    "nps": 10,
+    "retirementSip": 10,
+    "childEducation": 10,
+    "realEstate": 6,
+    "other": 8,
+}
 
 
 def respond(status, body):
@@ -113,59 +146,75 @@ def normalize_profile(profile):
     basics["dependentParentsCount"] = _int(basics.get("dependentParentsCount")) if basics["parentsDependent"] else 0
     cleaned["basics"] = basics
 
-    investments = cleaned.get("investments") or []
     normalized_investments = []
-    if isinstance(investments, list):
-        for idx, inv in enumerate(investments):
-            if not isinstance(inv, dict):
-                continue
-            current_value = _num(inv.get("currentValue"))
-            monthly_amount = _num(inv.get("monthlyAmount"))
-            if current_value <= 0 and monthly_amount <= 0:
-                continue
-            category = inv.get("category") or "other"
-            normalized_investments.append({
-                "name": str(inv.get("name") or f"Investment {idx + 1}").strip(),
-                "category": category,
-                "monthlyAmount": monthly_amount,
-                "currentValue": current_value,
-                "expectedReturnPct": _num(inv.get("expectedReturnPct")) or default_return_pct(category),
-                "goal": inv.get("goal") or infer_goal_from_category(category),
-            })
+    for idx, inv in enumerate(cleaned.get("investments") or []):
+        if not isinstance(inv, dict):
+            continue
+        current_value = _num(inv.get("currentValue"))
+        monthly_amount = _num(inv.get("monthlyAmount"))
+        if current_value <= 0 and monthly_amount <= 0:
+            continue
+        category = inv.get("category") or "other"
+        normalized_investments.append({
+            "name": str(inv.get("name") or f"Investment {idx + 1}").strip(),
+            "category": category,
+            "monthlyAmount": monthly_amount,
+            "currentValue": current_value,
+            "expectedReturnPct": _num(inv.get("expectedReturnPct")) or DEFAULT_RETURNS.get(category, 8),
+            "goal": inv.get("goal") or infer_goal_from_category(category),
+        })
     cleaned["investments"] = normalized_investments
+
+    normalized_goals = []
+    for idx, goal in enumerate(cleaned.get("goals") or []):
+        if not isinstance(goal, dict):
+            continue
+        present_cost = _num(goal.get("presentCost"))
+        years = _int(goal.get("years"))
+        if present_cost <= 0 or years <= 0:
+            continue
+        category = goal.get("category") or "wealth"
+        normalized_goals.append({
+            "name": str(goal.get("name") or f"Goal {idx + 1}").strip(),
+            "category": category,
+            "presentCost": present_cost,
+            "years": years,
+            "inflationPct": _num(goal.get("inflationPct")) or default_goal_inflation(category) * 100,
+            "expectedReturnPct": _num(goal.get("expectedReturnPct")) or 9,
+            "priority": goal.get("priority") or default_goal_priority(category),
+        })
+    cleaned["goals"] = normalized_goals
     return cleaned
-
-
-def default_return_pct(category):
-    return {
-        "equityLargeCap": 11,
-        "equityMidCap": 12,
-        "equitySmallCap": 13,
-        "equityFlexiCap": 11,
-        "equityIndex": 11,
-        "elss": 11,
-        "debtFund": 7,
-        "liquidFund": 5.5,
-        "hybridFund": 9,
-        "fdRd": 6.5,
-        "epf": 8,
-        "ppf": 7.1,
-        "nps": 10,
-        "gold": 7,
-        "realEstate": 6,
-        "smallcase": 12,
-        "childEducation": 10,
-        "retirementSip": 10,
-        "other": 8,
-    }.get(category, 8)
 
 
 def infer_goal_from_category(category):
     if category in RETIREMENT_CATEGORIES:
         return "retirement"
-    if category in CHILD_CATEGORIES:
+    if category == "childEducation":
         return "childEducation"
+    if category == "elss":
+        return "taxSaving"
     return "wealth"
+
+
+def default_goal_inflation(category):
+    if category in {"education", "childEducation"}:
+        return ASSUMPTIONS["educationInflation"]
+    if category in {"medical", "parentsMedical"}:
+        return ASSUMPTIONS["medicalInflation"]
+    if category in {"home", "realEstate"}:
+        return ASSUMPTIONS["realEstateInflation"]
+    return ASSUMPTIONS["generalInflation"]
+
+
+def default_goal_priority(category):
+    if category in {"retirement", "emergency", "debt"}:
+        return "Critical"
+    if category in {"education", "childEducation", "insurance"}:
+        return "High"
+    if category in {"home", "medical"}:
+        return "Medium"
+    return "Low"
 
 
 def validate_profile(profile):
@@ -173,7 +222,6 @@ def validate_profile(profile):
     basics = profile.get("basics", {}) or {}
     income = profile.get("income", {}) or {}
     expenses = profile.get("expenses", {}) or {}
-
     age = _int(basics.get("age"))
     retirement_age = _int(basics.get("desiredRetirementAge"))
     if age <= 0:
@@ -189,7 +237,63 @@ def validate_profile(profile):
         errors.append("Total monthly EMI is required. Enter 0 if not applicable.")
     if profile.get("emergencyFund") in ("", None):
         errors.append("Emergency fund is required. Enter 0 if none.")
+    if basics.get("parentsDependent") and _int(basics.get("dependentParentsCount")) < 1:
+        errors.append("Dependent parent count must be at least 1.")
     return errors
+
+
+def compute_tax(profile):
+    income = profile.get("income", {}) or {}
+    tax = profile.get("tax", {}) or {}
+    gross_income = (_num(income.get("monthlyAfterTax")) + _num(income.get("otherMonthly"))) * 12 + _num(income.get("bonusAnnual"))
+    old_deductions = min(150000, _num(tax.get("deduction80C"))) + min(50000, _num(tax.get("nps80CCD1B"))) + _num(tax.get("health80D")) + _num(tax.get("hraExemption"))
+    old_taxable = max(0, gross_income - 50000 - old_deductions)
+    new_taxable = max(0, gross_income - 75000)
+
+    old_tax = slab_tax_old(old_taxable)
+    new_tax = slab_tax_new_2025(new_taxable)
+    old_tax *= 1.04
+    new_tax *= 1.04
+    preferred = "Old" if old_tax < new_tax else "New"
+    return {
+        "grossIncome": _money(gross_income),
+        "oldTaxable": _money(old_taxable),
+        "newTaxable": _money(new_taxable),
+        "oldTax": _money(old_tax),
+        "newTax": _money(new_tax),
+        "preferredRegime": preferred,
+        "savingsVsOther": _money(abs(old_tax - new_tax)),
+    }
+
+
+def slab_tax_old(taxable):
+    taxable = _num(taxable)
+    tax = 0
+    slabs = [(250000, 0), (500000, 0.05), (1000000, 0.20), (10**18, 0.30)]
+    prev = 0
+    for limit, rate in slabs:
+        if taxable > prev:
+            tax += (min(taxable, limit) - prev) * rate
+        prev = limit
+        if taxable <= limit:
+            break
+    return tax
+
+
+def slab_tax_new_2025(taxable):
+    taxable = _num(taxable)
+    if taxable <= 1200000:
+        return 0
+    tax = 0
+    slabs = [(400000, 0), (800000, 0.05), (1200000, 0.10), (1600000, 0.15), (2000000, 0.20), (2400000, 0.25), (10**18, 0.30)]
+    prev = 0
+    for limit, rate in slabs:
+        if taxable > prev:
+            tax += (min(taxable, limit) - prev) * rate
+        prev = limit
+        if taxable <= limit:
+            break
+    return tax
 
 
 def compute_summary(profile):
@@ -203,7 +307,6 @@ def compute_summary(profile):
     monthly_income = _num(income.get("monthlyAfterTax")) + _num(income.get("otherMonthly")) + _num(income.get("bonusAnnual")) / 12.0
     monthly_expenses = _num(expenses.get("fixed")) + _num(expenses.get("variable")) + _num(expenses.get("annual")) / 12.0 + _num(profile.get("monthlyEmi"))
     monthly_surplus = monthly_income - monthly_expenses
-
     existing_monthly_investments = sum(_num(i.get("monthlyAmount")) for i in investments)
     remaining_surplus = max(0, monthly_surplus - existing_monthly_investments)
 
@@ -211,7 +314,6 @@ def compute_summary(profile):
     total_liabilities = sum(_num(v) for v in liabilities.values())
     emergency_have = _num(profile.get("emergencyFund")) or _num(assets.get("bankSavings"))
     emergency_months = emergency_have / monthly_expenses if monthly_expenses > 0 else 0
-
     dependents_count = len(basics.get("kids", [])) + _int(basics.get("dependentParentsCount")) + (1 if basics.get("maritalStatus") == "married" else 0)
 
     warnings = []
@@ -245,6 +347,7 @@ def compute_summary(profile):
         "dependentsCount": dependents_count,
         "riskProfile": risk_profile,
         "warnings": warnings,
+        "tax": compute_tax(profile),
     }
 
 
@@ -258,45 +361,41 @@ def derive_risk_profile(profile, surplus, income, emergency_months, liabilities,
         score += 1
     else:
         score -= 1
-
     if dependents_count == 0:
         score += 1
     elif dependents_count >= 3:
         score -= 2
     else:
         score -= 1
-
     if emergency_months >= 6:
         score += 1
     elif emergency_months < 3:
         score -= 2
-
     surplus_ratio = surplus / income if income > 0 else 0
     if surplus_ratio >= 0.30:
         score += 2
     elif surplus_ratio < 0.10:
         score -= 1
-
     if liabilities > income * 24:
         score -= 1
-
     monthly_investments = sum(_num(i.get("monthlyAmount")) for i in investments)
-    equity_like = sum(_num(i.get("monthlyAmount")) for i in investments if i.get("category") not in LOW_RISK_CATEGORIES)
+    equity_like = sum(_num(i.get("monthlyAmount")) for i in investments if i.get("category") in GROWTH_CATEGORIES)
     if monthly_investments > 0 and equity_like / monthly_investments > 0.6:
         score += 1
-
     if score >= 3:
-        return {"label": "Growth", "equity": 70, "debt": 20, "gold": 10, "reason": "Age, cash-flow capacity, dependents, emergency fund and current investment pattern support growth allocation."}
+        return {"label": "Growth", "equity": 70, "debt": 20, "gold": 10, "reason": "Age, surplus, dependents, emergency fund and existing investment pattern support growth allocation."}
     if score >= 1:
         return {"label": "Balanced", "equity": 55, "debt": 35, "gold": 10, "reason": "Profile supports moderate risk with a balanced equity-debt allocation."}
     return {"label": "Conservative", "equity": 35, "debt": 55, "gold": 10, "reason": "Dependents, emergency fund, cash-flow or liabilities suggest capital protection first."}
 
 
-def project_investments(investments, years, goal_filter=None):
+def project_investments(investments, years, goal=None, categories=None):
     total = 0
     rows = []
     for inv in investments:
-        if goal_filter and inv.get("goal") != goal_filter and inv.get("category") not in goal_filter:
+        if goal and inv.get("goal") != goal:
+            continue
+        if categories and inv.get("category") not in categories:
             continue
         annual_return = _num(inv.get("expectedReturnPct")) / 100.0
         fv = _fv_lumpsum(inv.get("currentValue"), annual_return, years) + _fv_monthly(inv.get("monthlyAmount"), annual_return, years)
@@ -339,51 +438,45 @@ def allocate_recommendations(goals, available_surplus):
 def compute_insurance(profile, summary, goals):
     basics = profile.get("basics", {}) or {}
     insurance = profile.get("insurance", {}) or {}
-    liabilities = profile.get("liabilities", {}) or {}
-
     dependents = summary["dependentsCount"]
     annual_expenses = summary["monthlyExpenses"] * 12
-    liquid_assets = summary["totalAssets"] - sum(_num(v) for v in liabilities.values())
-
     high_priority_goal_gap = sum(g["gap"] for g in goals if g["priority"] in {"Critical", "High"} and "Insurance" not in g["name"])
 
     if dependents == 0:
-        required_life = max(0, summary["totalLiabilities"] + annual_expenses * 2 - liquid_assets)
-        life_note = "No dependents entered. Term insurance is good-to-have mainly for liabilities, final expenses, and future family plans, not a high mandatory need."
+        required_life = max(0, summary["totalLiabilities"] + annual_expenses * 2 - summary["totalAssets"])
+        life_note = "No dependents entered. Term insurance is good-to-have mainly for liabilities, final expenses, and future family plans."
         priority = "Medium" if required_life > 0 else "Low"
     else:
-        income_replacement_years = min(20, max(5, _int(basics.get("desiredRetirementAge")) - _int(basics.get("age"))))
-        required_life = max(0, annual_expenses * income_replacement_years + summary["totalLiabilities"] + high_priority_goal_gap - liquid_assets)
-        life_note = f"Dependents found. CFP-style need uses {income_replacement_years} years of expense replacement plus liabilities and high-priority goals."
+        years_to_retirement = max(5, _int(basics.get("desiredRetirementAge")) - _int(basics.get("age")))
+        income_replacement_years = min(20, years_to_retirement)
+        required_life = max(0, annual_expenses * income_replacement_years + summary["totalLiabilities"] + high_priority_goal_gap - summary["totalAssets"])
+        life_note = f"Dependents found. CFP need uses {income_replacement_years} years of expense replacement plus liabilities and high-priority goals."
         priority = "High"
 
     existing_life = _num(insurance.get("life"))
-    life_gap = max(0, required_life - existing_life)
-
     base_health = 1000000 if basics.get("maritalStatus") == "single" else 2000000
     base_health += 500000 * len(basics.get("kids", []))
     base_health += 750000 * _int(basics.get("dependentParentsCount"))
     if basics.get("cityTier") == "Tier 1":
         base_health *= 1.25
     existing_health = _num(insurance.get("health"))
-    health_gap = max(0, base_health - existing_health)
 
     return {
         "requiredLifeCover": _money(required_life),
         "existingLifeCover": _money(existing_life),
-        "lifeCoverGap": _money(life_gap),
+        "lifeCoverGap": _money(max(0, required_life - existing_life)),
         "lifePriority": priority,
         "lifeNote": life_note,
         "requiredHealthCover": _money(base_health),
         "existingHealthCover": _money(existing_health),
-        "healthCoverGap": _money(health_gap),
+        "healthCoverGap": _money(max(0, base_health - existing_health)),
     }
 
 
 def build_plan(profile, summary):
     basics = profile.get("basics", {}) or {}
-    investments = profile.get("investments", []) or {}
-    assets = profile.get("assets", {}) or {}
+    investments = profile.get("investments", []) or []
+    goals_input = profile.get("goals", []) or []
     liabilities = profile.get("liabilities", {}) or {}
 
     goals = []
@@ -395,22 +488,14 @@ def build_plan(profile, summary):
 
     monthly_expense_at_retirement = _fv_lumpsum(summary["monthlyExpenses"], ASSUMPTIONS["retirementExpenseInflation"], years_to_retirement)
     retirement_corpus = (monthly_expense_at_retirement * 12) / ASSUMPTIONS["safeWithdrawalRate"]
-    retirement_existing, retirement_rows = project_investments(investments, years_to_retirement, goal_filter={"retirement", "epf", "ppf", "nps", "retirementSip", "equityIndex", "equityLargeCap", "equityFlexiCap"})
-    retirement_existing += _fv_lumpsum(_num(assets.get("epfPpfNps")), 0.08, years_to_retirement)
+    retirement_existing, retirement_rows = project_investments(investments, years_to_retirement, goal="retirement")
     retirement_gap = max(0, retirement_corpus - retirement_existing)
     retirement_target_sip = _sip_required(retirement_gap, ASSUMPTIONS["defaultBalancedReturn"], years_to_retirement)
-    add_goal(goals, "Retirement Corpus", "Required", "Critical", years_to_retirement, retirement_corpus / ((1 + ASSUMPTIONS["retirementExpenseInflation"]) ** years_to_retirement), retirement_corpus, retirement_existing, retirement_target_sip, "Includes current EPF/NPS/PPF/SIP rows and their editable return assumptions.")
+    add_goal(goals, "Retirement Corpus", "Required", "Critical", years_to_retirement, retirement_corpus / ((1 + ASSUMPTIONS["retirementExpenseInflation"]) ** years_to_retirement), retirement_corpus, retirement_existing, retirement_target_sip, "Includes current EPF/NPS/PPF/SIP rows mapped to retirement and editable return assumptions.")
 
     unsecured_debt = _num(liabilities.get("personalLoan")) + _num(liabilities.get("creditCard")) + _num(liabilities.get("vehicleLoan")) + _num(liabilities.get("otherDebt"))
     if unsecured_debt > 0:
         add_goal(goals, "High-Interest Debt Repayment", "Required", "Critical", 1, unsecured_debt, unsecured_debt, 0, unsecured_debt / 12, "Repay high-interest debt before adding optional investments.")
-
-    if not basics.get("ownsHouse"):
-        home_years = 7
-        present_home_cost = 7500000 if basics.get("cityTier") == "Tier 1" else 5000000
-        future_home_cost = _fv_lumpsum(present_home_cost, ASSUMPTIONS["realEstateInflation"], home_years)
-        down_payment = future_home_cost * 0.20
-        add_goal(goals, "Home Down Payment", "Suggested", "Medium", home_years, present_home_cost * 0.20, down_payment, 0, _sip_required(down_payment, ASSUMPTIONS["defaultBalancedReturn"], home_years), "Suggested because user does not own a home. Edit/remove later when explicit goal module is added.")
 
     kids = basics.get("kids", [])
     for kid in kids:
@@ -419,11 +504,21 @@ def build_plan(profile, summary):
         years = max(1, 18 - child_age)
         pv = 1500000
         fv = _fv_lumpsum(pv, ASSUMPTIONS["educationInflation"], years)
-        existing_child, _ = project_investments(investments, years, goal_filter={"childEducation"})
+        existing_child, _ = project_investments(investments, years, goal="childEducation")
         if len(kids) > 1:
             existing_child = existing_child / len(kids)
         gap = max(0, fv - existing_child)
         add_goal(goals, f"{child_name} Education", "Required", "High", years, pv, fv, existing_child, _sip_required(gap, ASSUMPTIONS["defaultBalancedReturn"], years), "Uses child age and existing child education SIP rows.")
+
+    for user_goal in goals_input:
+        years = _int(user_goal.get("years"))
+        pv = _num(user_goal.get("presentCost"))
+        inflation = _num(user_goal.get("inflationPct")) / 100
+        expected_return = _num(user_goal.get("expectedReturnPct")) / 100
+        fv = _fv_lumpsum(pv, inflation, years)
+        existing, _ = project_investments(investments, years, goal=user_goal.get("category"))
+        gap = max(0, fv - existing)
+        add_goal(goals, user_goal.get("name"), "User-entered", user_goal.get("priority"), years, pv, fv, existing, _sip_required(gap, expected_return, years), "Structured goal row entered by user.")
 
     insurance = compute_insurance(profile, summary, goals)
     add_goal(goals, "Life Insurance Gap", "Required", insurance["lifePriority"], 0, insurance["requiredLifeCover"], insurance["requiredLifeCover"], insurance["existingLifeCover"], 0, insurance["lifeNote"])
@@ -444,6 +539,7 @@ def build_plan(profile, summary):
             "targetMonthlySip": retirement_target_sip,
             "recommendedMonthlySip": next((g["recommendedMonthlyInvestment"] for g in goals if g["name"] == "Retirement Corpus"), 0),
         },
+        "tax": summary["tax"],
         "totalTargetMonthlyInvestment": _money(sum(g["targetMonthlyInvestment"] for g in goals)),
         "totalRecommendedMonthlyInvestment": _money(sum(g["recommendedMonthlyInvestment"] for g in goals)),
         "unallocatedSurplus": unallocated,
@@ -458,8 +554,9 @@ def build_report(profile, summary, plan, ai_notes=None):
     risk = plan["riskProfile"]
     ins = plan["insurance"]
     ret = plan["retirement"]
+    tax = plan["tax"]
     lines = [
-        "### 1. CFP Feasibility Check",
+        "### 1. FinOS CFP Dashboard",
         "",
         f"- Average monthly income: {_fmt_money(summary['monthlyIncome'])}",
         f"- Monthly expenses: {_fmt_money(summary['monthlyExpenses'])}",
@@ -467,6 +564,7 @@ def build_report(profile, summary, plan, ai_notes=None):
         f"- Remaining surplus for new recommendations: {_fmt_money(summary['remainingSurplusAfterExistingInvestments'])}",
         f"- Recommended new investments: {_fmt_money(plan['totalRecommendedMonthlyInvestment'])}",
         f"- Auto risk profile: **{risk['label']}** ({risk['equity']}% equity / {risk['debt']}% debt / {risk['gold']}% gold). {risk['reason']}",
+        f"- Tax regime suggestion: **{tax['preferredRegime']} regime** saves approx {_fmt_money(tax['savingsVsOther'])} vs the other regime.",
     ]
     for warning in summary.get("warnings", []):
         lines.append(f"- Warning: {warning}")
@@ -488,7 +586,7 @@ def build_report(profile, summary, plan, ai_notes=None):
         f"- Years to retirement: {ret['yearsToRetirement']}",
         f"- Monthly expense at retirement: {_fmt_money(ret['monthlyExpenseAtRetirement'])}",
         f"- Corpus required: {_fmt_money(ret['corpusRequired'])}",
-        f"- Existing retirement corpus + SIPs projected: {_fmt_money(ret['existingProjected'])}",
+        f"- Existing retirement investments projected: {_fmt_money(ret['existingProjected'])}",
         f"- Retirement gap: {_fmt_money(ret['gap'])}",
         f"- Target additional SIP: {_fmt_money(ret['targetMonthlySip'])}",
         f"- Recommended additional SIP now, capped to surplus: {_fmt_money(ret['recommendedMonthlySip'])}",
@@ -503,7 +601,14 @@ def build_report(profile, summary, plan, ai_notes=None):
         f"- Existing health cover: {_fmt_money(ins['existingHealthCover'])}",
         f"- Health cover gap: {_fmt_money(ins['healthCoverGap'])}",
         "",
-        "### 5. Investment Mapping",
+        "### 5. Tax Snapshot FY 2025-26",
+        "",
+        f"- Gross annual income considered: {_fmt_money(tax['grossIncome'])}",
+        f"- Old regime tax estimate: {_fmt_money(tax['oldTax'])}",
+        f"- New regime tax estimate: {_fmt_money(tax['newTax'])}",
+        f"- Suggested regime: {tax['preferredRegime']}",
+        "",
+        "### 6. Investment Mapping",
         "",
     ]
     investments = profile.get("investments", []) or []
@@ -515,14 +620,15 @@ def build_report(profile, summary, plan, ai_notes=None):
 
     lines += [
         "",
-        "### 6. Priority Action Plan",
+        "### 7. Action Plan",
         "",
         "- Keep total new SIP recommendations within remaining surplus.",
         "- Fund emergency fund and high-interest debt before optional goals.",
         "- Continue EPF/NPS/PPF/SIPs already mapped to retirement; only add the recommended additional SIP if surplus allows.",
-        "- Review insurance after every major life event: marriage, child, home loan, dependent parents, income change.",
+        "- Review insurance after major life events: marriage, child, home loan, dependent parents, income change.",
+        "- Use tax regime comparison before March investment decisions.",
         "",
-        "### 7. Final Recommendations",
+        "### 8. CFP Notes",
         "",
         ai_notes.strip() if ai_notes else "Review this plan annually and update SIP rows, expected returns, insurance, expenses, and dependents.",
         "",
@@ -531,7 +637,7 @@ def build_report(profile, summary, plan, ai_notes=None):
     return "\n".join(lines)
 
 
-AI_NOTES_PROMPT = """You are a CFP-style financial planning assistant. Backend numbers are deterministic.
+AI_NOTES_PROMPT = """You are a CFP-style financial planning assistant for Indian users. Backend numbers are deterministic.
 Write 3-5 practical recommendation bullets only. Do not change numbers. Do not add goals.
 Do not recommend new monthly investment above remainingSurplusAfterExistingInvestments.
 """
