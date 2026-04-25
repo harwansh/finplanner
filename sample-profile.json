@@ -1,0 +1,56 @@
+{
+  "basics": {
+    "age": 32,
+    "country": "India",
+    "city": "Bengaluru",
+    "maritalStatus": "married",
+    "employmentType": "salaried",
+    "dependentsCount": 3,
+    "kids": [{"name": "Aarav", "age": 4}]
+  },
+  "income": {
+    "monthlyAfterTax": 200000,
+    "bonusAnnual": 400000,
+    "otherMonthly": 15000,
+    "expectedGrowthPct": 8
+  },
+  "expenses": {
+    "fixed": 80000,
+    "variable": 35000,
+    "annual": 240000
+  },
+  "assets": {
+    "savings": 500000,
+    "stocks": 800000,
+    "mutualFunds": 1200000,
+    "crypto": 50000,
+    "gold": 200000,
+    "realEstate": 0,
+    "retirement": 600000
+  },
+  "liabilities": {
+    "homeLoan": 0,
+    "personalLoan": 0,
+    "creditCard": 80000,
+    "otherDebt": 0,
+    "avgInterestPct": 36
+  },
+  "risk": "moderate",
+  "insurance": {
+    "life": 5000000,
+    "health": 1000000,
+    "disability": 0
+  },
+  "preferences": {
+    "ethical": "no tobacco, no arms",
+    "religious": "",
+    "preferredAssets": "index funds, mutual funds",
+    "timePerWeekHours": 2
+  },
+  "behavior": {
+    "spendingHabit": "moderate",
+    "savingsConsistent": true,
+    "pastMistakes": "Bought single stocks at peak in 2021",
+    "knowledgeLevel": "intermediate"
+  }
+}

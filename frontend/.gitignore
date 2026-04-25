@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Environment files (CRITICAL — these contain your AWS IDs)
+.env
+.env.local
+frontend/.env
+
+# Build outputs
+dist/
+.aws-sam/
+
+# IDE
+.DS_Store
+.vscode/
+.idea/
+
+# SAM
+samconfig.toml
