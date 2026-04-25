@@ -1,0 +1,249 @@
+.results {
+  margin-top: 36px;
+}
+
+.summary-panel,
+.report-shell {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 24px;
+  padding: 28px;
+  margin-top: 28px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
+}
+
+.summary-header,
+.report-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2563eb;
+}
+
+.summary-header h2,
+.report-title h2 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.2;
+  color: #0f172a;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-pill.success {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.status-pill.danger {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+.kpi-grid.professional {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.kpi {
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 18px;
+  min-height: 96px;
+}
+
+.kpi.big {
+  background: linear-gradient(135deg, #eff6ff, #ffffff);
+  border-color: #bfdbfe;
+}
+
+.kpi-label {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.kpi.big .kpi-value {
+  font-size: 28px;
+  color: #1d4ed8;
+}
+
+.kpi.tone-bad .kpi-value {
+  color: #dc2626;
+}
+
+.kpi.tone-good .kpi-value {
+  color: #059669;
+}
+
+.kpi.tone-warn .kpi-value {
+  color: #d97706;
+}
+
+.insight-box {
+  margin-top: 20px;
+  border-radius: 18px;
+  padding: 18px 20px;
+}
+
+.insight-box strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 15px;
+}
+
+.insight-box p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.insight-box.danger {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #9f1239;
+}
+
+.insight-box.warn {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.report-card {
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
+  line-height: 1.75;
+  color: #1f2937;
+}
+
+.report-card h1 {
+  font-size: 32px;
+  line-height: 1.2;
+  margin: 20px 0 18px;
+  color: #0f172a;
+}
+
+.report-card h2 {
+  font-size: 23px;
+  line-height: 1.3;
+  margin: 34px 0 14px;
+  padding-bottom: 8px;
+  color: #1e3a8a;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.report-card h3 {
+  font-size: 18px;
+  margin: 24px 0 10px;
+  color: #111827;
+}
+
+.report-card p {
+  margin: 10px 0;
+}
+
+.report-card table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 18px 0 26px;
+  font-size: 14px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+}
+
+.report-card th {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 800;
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.report-card td {
+  padding: 12px;
+  vertical-align: top;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.report-card tr:last-child td {
+  border-bottom: none;
+}
+
+.report-card tr:nth-child(even) td {
+  background: #f8fafc;
+}
+
+.report-card ul,
+.report-card ol {
+  padding-left: 24px;
+}
+
+.report-card li {
+  margin: 6px 0;
+}
+
+.report-card strong {
+  color: #0f172a;
+}
+
+@media (max-width: 900px) {
+  .kpi-grid.professional {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summary-header,
+  .report-title {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .summary-panel,
+  .report-shell {
+    padding: 20px;
+    border-radius: 18px;
+  }
+
+  .kpi-grid.professional {
+    grid-template-columns: 1fr;
+  }
+
+  .report-card table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
