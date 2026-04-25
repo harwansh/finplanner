@@ -12,9 +12,6 @@ BEDROCK_REGION = os.environ.get("BEDROCK_REGION", "us-east-1")
 bedrock = boto3.client("bedrock-runtime", region_name=BEDROCK_REGION)
 
 CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "POST,OPTIONS",
     "Content-Type": "application/json",
 }
 
