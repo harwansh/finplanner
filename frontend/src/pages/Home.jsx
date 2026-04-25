@@ -6,6 +6,103 @@ import { analyze } from '../api/client'
 
 const FY_LABEL = 'FY 2026-27'
 
+
+const investorDemoProfile = {
+  basics: {
+    age: 34,
+    desiredRetirementAge: 60,
+    country: 'India',
+    cityTier: 'Metro',
+    maritalStatus: 'married',
+    employmentType: 'salaried',
+    kids: [{ name: 'Aarav', age: 5 }],
+    parentsDependent: true,
+    dependentParentsCount: 2,
+    ownsHouse: false,
+    taxRegime: 'new',
+  },
+  salary: {
+    basicSalary: 1200000,
+    hraReceived: 480000,
+    lta: 60000,
+    internetAllowance: 24000,
+    flexibleCompPlan: 600000,
+    telephoneReimbursement: 24000,
+    npsEmployer: 120000,
+    superannuation: 0,
+    leaveEncashment: 0,
+    bonusVariablePay: 400000,
+    shiftAllowance: 0,
+    onCallAllowance: 60000,
+    internet: 0,
+    teamParty: 0,
+    awardsNonCashTaxable: 50000,
+    grossEarning: 3018000,
+    epfContribution: 144000,
+    profTax: 2400,
+    incomeTax: 300000,
+    labourWelfareFund: 0,
+    npsEmployee: 50000,
+    meal: 26400,
+    noticeRecovery: 0,
+    grossDeductions: 496400,
+    netSalary: 2521600,
+    rentPaid: 720000,
+    monthlyBasic: '',
+    monthlyHra: '',
+    monthlySpecialAllowance: '',
+    monthlyLta: '',
+    monthlyBonus: '',
+    monthlyEmployerNps: '',
+    monthlyEmployeeEpf: '',
+    monthlyProfessionalTax: '',
+    rentPaidMonthly: '',
+    annualGross: '',
+  },
+  income: { monthlyAfterTax: 210000, bonusAnnual: 200000, otherMonthly: 10000, expectedGrowthPct: 8 },
+  expenses: { fixed: 80000, variable: 35000, annual: 240000 },
+  monthlyEmi: 25000,
+  emergencyFund: 800000,
+  liabilities: {
+    homeLoan: 0,
+    personalLoan: 250000,
+    educationLoan: 0,
+    creditCard: 50000,
+    vehicleLoan: 0,
+    otherDebt: 0,
+  },
+  insurance: { life: 5000000, health: 1000000, criticalIllness: 0 },
+  tax: {
+    deduction80C: 50000,
+    nps80CCD1B: 50000,
+    health80D: 25000,
+    health80DParents: 50000,
+    homeLoanInterest24B: 0,
+    homeLoan80EE: 0,
+    homeLoan80EEA: 0,
+    educationLoan80E: 0,
+    donation80G: 0,
+    interest80TTA_TTB: 8000,
+    hraExemption: '',
+    ltaExemption: '',
+    professionalTax: '',
+    otherAnnualIncome: 120000,
+    capitalGain: 0,
+    taxPaid: 300000,
+  },
+  investments: [
+    { name: 'EPF corpus', category: 'epf', currentValue: 900000, monthlyAmount: 0, expectedReturnPct: 8.25, goal: 'retirement' },
+    { name: 'NPS Tier 1', category: 'nps', currentValue: 350000, monthlyAmount: 5000, expectedReturnPct: 10, goal: 'retirement' },
+    { name: 'Flexicap SIP', category: 'equityFlexiCap', currentValue: 600000, monthlyAmount: 20000, expectedReturnPct: 11, goal: 'wealth' },
+    { name: 'Child education SIP', category: 'childEducation', currentValue: 250000, monthlyAmount: 10000, expectedReturnPct: 10, goal: 'childEducation' },
+  ],
+  goals: [
+    { name: 'Buy home down payment', category: 'home', presentCost: 2500000, years: 5, inflationPct: 6, expectedReturnPct: 9, priority: 'High' },
+    { name: 'Family vacation fund', category: 'travel', presentCost: 500000, years: 3, inflationPct: 6, expectedReturnPct: 7, priority: 'Medium' },
+  ],
+}
+
+
 const empty = {
   basics: {
     age: '',
@@ -241,12 +338,63 @@ const goalInflationMap = {
   other: 6,
 }
 
+
+function InvestorReadySnapshot({ onLoadDemo }) {
+  return (
+    <div className="investor-snapshot card">
+      <div className="investor-copy">
+        <div className="investor-eyebrow">AI-first financial planning for Indian families</div>
+        <h2>From messy salary, tax, insurance and SIP data to one clear action plan.</h2>
+        <p>
+          SmartFinly turns user inputs into an AI-generated plan with affordability, tax, insurance,
+          compliance and data-safety guardrails. It is built for education and sampling, not product selling.
+        </p>
+        <div className="investor-actions">
+          <button type="button" className="primary" onClick={onLoadDemo}>Load investor demo profile</button>
+          <span>Use the demo to test output quality in under 60 seconds.</span>
+        </div>
+      </div>
+
+      <div className="investor-grid">
+        <div><strong>Problem</strong><span>Families cannot connect salary, tax, goals, SIPs, EPF/NPS and insurance.</span></div>
+        <div><strong>Solution</strong><span>AI planner produces a goal-wise, tax-aware, insurance-aware action plan.</span></div>
+        <div><strong>Trust</strong><span>No PAN/Aadhaar/bank/OTP needed. Educational only. No guaranteed returns.</span></div>
+        <div><strong>Moat</strong><span>India-specific salary tax + family-goal workflow + AI explanation layer.</span></div>
+      </div>
+    </div>
+  )
+}
+
+function InvestorDueDiligenceStrip() {
+  return (
+    <div className="investor-dd-strip">
+      <span>Investor-grade checks added:</span>
+      <em>Demo profile</em>
+      <em>Privacy warning</em>
+      <em>AI guardrails</em>
+      <em>Tax transparency</em>
+      <em>Compliance positioning</em>
+    </div>
+  )
+}
+
 export default function Home() {
   const [data, setData] = useState(empty)
   const [activeTab, setActiveTab] = useState('profile')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [result, setResult] = useState(null)
+
+  const loadInvestorDemoProfile = () => {
+    const clone = typeof structuredClone === 'function'
+      ? structuredClone(investorDemoProfile)
+      : JSON.parse(JSON.stringify(investorDemoProfile))
+    setData(clone)
+    setActiveTab('profile')
+    setErr('')
+    setResult(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
   const resultsRef = useRef(null)
 
   const set = (section, field, val) =>
@@ -346,6 +494,10 @@ export default function Home() {
           insurance, investments, goals and retirement.
         </p>
       </div>
+
+      <InvestorReadySnapshot onLoadDemo={loadInvestorDemoProfile} />
+
+      <InvestorDueDiligenceStrip />
 
       <ComplianceBanner />
 
