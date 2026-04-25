@@ -293,3 +293,82 @@ button.primary:hover, .primary:hover {
 .markdown table tr:nth-child(even) {
   background: rgba(248,250,252,0.72);
 }
+
+
+/* FinOS tabbed wizard */
+.tabs-card {
+  margin: 18px 0;
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.78);
+  border: 1px solid rgba(148,163,184,0.22);
+  box-shadow: 0 14px 36px rgba(30,41,59,0.08);
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tab {
+  border: 1px solid rgba(148,163,184,0.32);
+  background: linear-gradient(135deg, #ffffff, #f8fafc);
+  color: #334155;
+  border-radius: 16px;
+  padding: 10px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  min-height: 62px;
+}
+
+.tab span {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 12px;
+}
+
+.tab.active {
+  color: white;
+  border-color: transparent;
+  background: linear-gradient(135deg, #2563eb, #7c3aed, #db2777);
+  box-shadow: 0 14px 28px rgba(124,58,237,0.24);
+}
+
+.tab.active span {
+  background: rgba(255,255,255,0.22);
+  color: white;
+}
+
+.tab.done {
+  border-color: rgba(16,185,129,0.32);
+  background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 980px) {
+  .tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .review-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .review-grid { grid-template-columns: 1fr; }
+}

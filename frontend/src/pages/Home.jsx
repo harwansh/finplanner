@@ -17,6 +17,18 @@ const empty = {
     ownsHouse: false,
     taxRegime: 'new',
   },
+  salary: {
+    monthlyBasic: '',
+    monthlyHra: '',
+    monthlySpecialAllowance: '',
+    monthlyLta: '',
+    monthlyBonus: '',
+    monthlyEmployerNps: '',
+    monthlyEmployeeEpf: '',
+    monthlyProfessionalTax: '',
+    rentPaidMonthly: '',
+    annualGross: '',
+  },
   income: { monthlyAfterTax: '', bonusAnnual: '', otherMonthly: '', expectedGrowthPct: 8 },
   expenses: { fixed: '', variable: '', annual: '' },
   monthlyEmi: '',
@@ -40,19 +52,6 @@ const empty = {
   goals: [],
 }
 
-const assetLabels = {
-  bankSavings: 'Bank savings',
-  fixedDeposits: 'Fixed deposits',
-  mutualFunds: 'Mutual funds current value',
-  stocks: 'Stocks current value',
-  epfCorpus: 'EPF current corpus',
-  ppfCorpus: 'PPF current corpus',
-  npsCorpus: 'NPS current corpus',
-  gold: 'Gold',
-  realEstate: 'Real estate',
-  otherAssets: 'Other assets',
-}
-
 const liabilityLabels = {
   homeLoan: 'Home loan',
   personalLoan: 'Personal loan',
@@ -60,6 +59,19 @@ const liabilityLabels = {
   creditCard: 'Credit card',
   vehicleLoan: 'Vehicle loan',
   otherDebt: 'Other debt',
+}
+
+const salaryLabels = {
+  monthlyBasic: 'Monthly basic salary',
+  monthlyHra: 'Monthly HRA received',
+  monthlySpecialAllowance: 'Monthly special / flexible allowance',
+  monthlyLta: 'Monthly LTA',
+  monthlyBonus: 'Monthly bonus / variable average',
+  monthlyEmployerNps: 'Monthly employer NPS',
+  monthlyEmployeeEpf: 'Monthly employee EPF',
+  monthlyProfessionalTax: 'Monthly professional tax',
+  rentPaidMonthly: 'Monthly rent paid',
+  annualGross: 'Annual gross salary override',
 }
 
 const taxLabels = {
@@ -71,9 +83,9 @@ const taxLabels = {
   educationLoan80E: 'Education loan interest 80E',
   donation80G: 'Donation 80G',
   interest80TTA_TTB: 'Savings/deposit interest 80TTA/80TTB',
-  hraExemption: 'HRA exemption',
+  hraExemption: 'Manual HRA exemption override',
   ltaExemption: 'LTA exemption',
-  professionalTax: 'Professional tax',
+  professionalTax: 'Extra annual professional tax',
   otherAnnualIncome: 'Other annual taxable income',
 }
 
@@ -137,8 +149,20 @@ const goalCategories = [
 const categoryReturnMap = Object.fromEntries(investmentCategories.map(([key,, ret]) => [key, ret]))
 const goalInflationMap = { retirement: 6, education: 10, childEducation: 10, home: 6, medical: 10, travel: 6, vehicle: 6, wealth: 6, other: 6 }
 
+const tabs = [
+  ['profile', 'Profile'],
+  ['salary', 'Salary & cash-flow'],
+  ['debt', 'Liabilities'],
+  ['insurance', 'Insurance'],
+  ['investments', 'Investments'],
+  ['goals', 'Goals'],
+  ['tax', 'Tax'],
+  ['review', 'Review'],
+]
+
 export default function Home() {
   const [data, setData] = useState(empty)
+  const [activeTab, setActiveTab] = useState('profile')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [result, setResult] = useState(null)
@@ -149,6 +173,11 @@ export default function Home() {
   const setTop = (field, val) => setData(d => ({ ...d, [field]: val }))
   const num = v => v === '' || v == null ? '' : Number(v)
   const preview = useMemo(() => getCashflowPreview(data), [data])
+  const salaryPreview = useMemo(() => getSalaryPreview(data), [data])
+  const currentIndex = tabs.findIndex(([key]) => key === activeTab)
+
+  const goNext = () => setActiveTab(tabs[Math.min(currentIndex + 1, tabs.length - 1)][0])
+  const goBack = () => setActiveTab(tabs[Math.max(currentIndex - 1, 0)][0])
 
   const submit = async (e) => {
     e.preventDefault()
@@ -173,180 +202,254 @@ export default function Home() {
 
   return (
     <>
-      <div className="card">
+      <div className="card hero-card">
         <h2>FinOS Planner</h2>
-        <p className="muted">A CFP-style financial operating system for cash-flow, liabilities, insurance, investments, goals, tax and retirement.</p>
+        <p className="muted">A CFP-style financial operating system for salary, tax, cash-flow, liabilities, insurance, investments, goals and retirement.</p>
       </div>
 
       <form onSubmit={submit}>
-        <Section title="1. Profile">
-          <Row>
-            <Field label="Current age" required>
-              <input type="number" min="18" max="100" value={data.basics.age}
-                onChange={e=>set('basics','age',num(e.target.value))} required />
-            </Field>
-            <Field label="Desired retirement age" required>
-              <input type="number" min="35" max="100" value={data.basics.desiredRetirementAge}
-                onChange={e=>set('basics','desiredRetirementAge',num(e.target.value))} required />
-            </Field>
-            <Field label="Country" required>
-              <input value={data.basics.country}
-                onChange={e=>set('basics','country',e.target.value)} required />
-            </Field>
-            <Field label="City tier" required>
-              <select value={data.basics.cityTier}
-                onChange={e=>set('basics','cityTier',e.target.value)} required>
-                <option>Metro</option><option>Tier 1</option><option>Tier 2</option><option>Tier 3</option><option>Tier 4</option><option>Rural / Village</option>
-              </select>
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Marital status" required>
-              <select value={data.basics.maritalStatus}
-                onChange={e=>{
-                  const maritalStatus = e.target.value
-                  setData(d => ({
-                    ...d,
-                    basics: { ...d.basics, maritalStatus, kids: maritalStatus === 'married' ? d.basics.kids : [] }
-                  }))
-                }} required>
-                <option value="single">Single</option>
-                <option value="married">Married</option>
-                <option value="divorced">Divorced</option>
-                <option value="widowed">Widowed</option>
-              </select>
-            </Field>
-            <Field label="Employment" required>
-              <select value={data.basics.employmentType}
-                onChange={e=>set('basics','employmentType',e.target.value)} required>
-                <option value="salaried">Salaried</option>
-                <option value="business">Business owner</option>
-                <option value="freelance">Freelance / contractor</option>
-              </select>
-            </Field>
-            <Field label="Own a home?" required>
-              <select value={data.basics.ownsHouse ? 'yes' : 'no'}
-                onChange={e=>set('basics','ownsHouse',e.target.value === 'yes')} required>
-                <option value="no">No</option>
-                <option value="yes">Yes</option>
-              </select>
-            </Field>
-            <Field label="Parents financially dependent?" required>
-              <select value={data.basics.parentsDependent ? 'yes' : 'no'}
-                onChange={e=>{
-                  const parentsDependent = e.target.value === 'yes'
-                  setData(d => ({ ...d, basics: { ...d.basics, parentsDependent, dependentParentsCount: parentsDependent ? Math.max(1, Number(d.basics.dependentParentsCount) || 1) : 0 }}))
-                }} required>
-                <option value="no">No</option>
-                <option value="yes">Yes</option>
-              </select>
-            </Field>
-          </Row>
+        <div className="tabs-card">
+          <div className="tabs">
+            {tabs.map(([key, label], index) => (
+              <button
+                type="button"
+                key={key}
+                className={`tab ${activeTab === key ? 'active' : ''} ${index < currentIndex ? 'done' : ''}`}
+                onClick={() => setActiveTab(key)}
+              >
+                <span>{index + 1}</span>{label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          {data.basics.parentsDependent && (
+        {activeTab === 'profile' && (
+          <Section title="1. Profile">
             <Row>
-              <Field label="Number of dependent parents" required>
-                <input type="number" min="1" max="2" value={data.basics.dependentParentsCount}
-                  onChange={e=>set('basics','dependentParentsCount',num(e.target.value))} required />
+              <Field label="Current age" required>
+                <input type="number" min="18" max="100" value={data.basics.age}
+                  onChange={e=>set('basics','age',num(e.target.value))} required />
+              </Field>
+              <Field label="Desired retirement age" required>
+                <input type="number" min="35" max="100" value={data.basics.desiredRetirementAge}
+                  onChange={e=>set('basics','desiredRetirementAge',num(e.target.value))} required />
+              </Field>
+              <Field label="Country" required>
+                <input value={data.basics.country}
+                  onChange={e=>set('basics','country',e.target.value)} required />
+              </Field>
+              <Field label="City type" required>
+                <select value={data.basics.cityTier}
+                  onChange={e=>set('basics','cityTier',e.target.value)} required>
+                  <option>Metro</option><option>Tier 1</option><option>Tier 2</option><option>Tier 3</option><option>Tier 4</option><option>Rural / Village</option>
+                </select>
               </Field>
             </Row>
-          )}
-
-          {data.basics.maritalStatus === 'married' && (
-            <KidsEditor kids={data.basics.kids} onChange={(kids)=>set('basics','kids',kids)} />
-          )}
-        </Section>
-
-        <Section title="2. Cash-flow">
-          <Row>
-            <Field label="Monthly income after tax" required hint="Example: 2,00,000">
-              <MoneyInput value={data.income.monthlyAfterTax} onChange={v=>set('income','monthlyAfterTax',v)} required />
-            </Field>
-            <Field label="Annual bonus / variable" hint="Enter 0 if none">
-              <MoneyInput value={data.income.bonusAnnual} onChange={v=>set('income','bonusAnnual',v)} />
-            </Field>
-            <Field label="Other monthly income">
-              <MoneyInput value={data.income.otherMonthly} onChange={v=>set('income','otherMonthly',v)} />
-            </Field>
-            <Field label="Expected income growth % / yr">
-              <input type="number" min="0" max="100" step="0.1" value={data.income.expectedGrowthPct}
-                onChange={e=>set('income','expectedGrowthPct',num(e.target.value))} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Fixed monthly expenses" required>
-              <MoneyInput value={data.expenses.fixed} onChange={v=>set('expenses','fixed',v)} required />
-            </Field>
-            <Field label="Variable monthly expenses" required>
-              <MoneyInput value={data.expenses.variable} onChange={v=>set('expenses','variable',v)} required />
-            </Field>
-            <Field label="Annual lump sums" required hint="Insurance, vacations, fees / year">
-              <MoneyInput value={data.expenses.annual} onChange={v=>set('expenses','annual',v)} required />
-            </Field>
-            <Field label="Total monthly EMIs" required>
-              <MoneyInput value={data.monthlyEmi} onChange={v=>setTop('monthlyEmi',v)} required />
-            </Field>
-          </Row>
-          <CashflowPreview preview={preview} />
-        </Section>
-        <Section title="3. Liabilities and emergency">
-          <div className="section-note">
-            Add only your emergency fund and debts here. Put all investment/current corpus values in “Existing investments and SIPs” to avoid duplicate counting.
-          </div>
-          <Row>
-            <Field label="Emergency fund" required hint="Liquid amount kept for emergencies">
-              <MoneyInput value={data.emergencyFund} onChange={v=>setTop('emergencyFund',v)} required />
-            </Field>
-            {Object.keys(empty.liabilities).map(k => (
-              <Field key={k} label={liabilityLabels[k] || prettify(k)}>
-                <MoneyInput value={data.liabilities[k]} onChange={v=>set('liabilities',k,v)} />
+            <Row>
+              <Field label="Marital status" required>
+                <select value={data.basics.maritalStatus}
+                  onChange={e=>{
+                    const maritalStatus = e.target.value
+                    setData(d => ({
+                      ...d,
+                      basics: { ...d.basics, maritalStatus, kids: maritalStatus === 'married' ? d.basics.kids : [] }
+                    }))
+                  }} required>
+                  <option value="single">Single</option>
+                  <option value="married">Married</option>
+                  <option value="divorced">Divorced</option>
+                  <option value="widowed">Widowed</option>
+                </select>
               </Field>
-            ))}
-          </Row>
-        </Section>
-
-        <Section title="4. Insurance">
-          <div className="section-note">Enter current cover. FinOS calculates required life and health cover from dependents, liabilities, expenses and goals.</div>
-          <Row>
-            <Field label="Life cover">
-              <MoneyInput value={data.insurance.life} onChange={v=>set('insurance','life',v)} />
-            </Field>
-            <Field label="Health cover">
-              <MoneyInput value={data.insurance.health} onChange={v=>set('insurance','health',v)} />
-            </Field>
-            <Field label="Critical illness cover">
-              <MoneyInput value={data.insurance.criticalIllness} onChange={v=>set('insurance','criticalIllness',v)} />
-            </Field>
-          </Row>
-        </Section>
-
-        <Section title="5. Existing investments and SIPs">
-          <div className="section-note">This is the single source for investment/current corpus values: EPF, PPF, NPS, mutual funds, smallcase, stocks, FD/RD, gold, real estate and SIPs. Return % is auto-filled by category but editable.</div>
-          <InvestmentEditor investments={data.investments} onChange={v=>setTop('investments', v)} />
-        </Section>
-
-        <Section title="6. Goals">
-          <div className="section-note">Structured goals replace free-text future plans. Add only goals you actually want.</div>
-          <GoalEditor goals={data.goals} onChange={v=>setTop('goals', v)} />
-        </Section>
-
-        <Section title="7. Tax inputs FY 2025-26">
-          <div className="section-note">Optional FY2025-26 deductions/exemptions. Enter all applicable values so FinOS can compare old vs new regime.</div>
-          <Row>
-            {Object.keys(empty.tax).map(k => (
-              <Field key={k} label={taxLabels[k] || prettify(k)}>
-                <MoneyInput value={data.tax[k]} onChange={v=>set('tax',k,v)} />
+              <Field label="Employment" required>
+                <select value={data.basics.employmentType}
+                  onChange={e=>set('basics','employmentType',e.target.value)} required>
+                  <option value="salaried">Salaried</option>
+                  <option value="business">Business owner</option>
+                  <option value="freelance">Freelance / contractor</option>
+                </select>
               </Field>
-            ))}
-          </Row>
-        </Section>
+              <Field label="Own a home?" required>
+                <select value={data.basics.ownsHouse ? 'yes' : 'no'}
+                  onChange={e=>set('basics','ownsHouse',e.target.value === 'yes')} required>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </Field>
+              <Field label="Parents financially dependent?" required>
+                <select value={data.basics.parentsDependent ? 'yes' : 'no'}
+                  onChange={e=>{
+                    const parentsDependent = e.target.value === 'yes'
+                    setData(d => ({ ...d, basics: { ...d.basics, parentsDependent, dependentParentsCount: parentsDependent ? Math.max(1, Number(d.basics.dependentParentsCount) || 1) : 0 }}))
+                  }} required>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </Field>
+            </Row>
+
+            {data.basics.parentsDependent && (
+              <Row>
+                <Field label="Number of dependent parents" required>
+                  <input type="number" min="1" max="2" value={data.basics.dependentParentsCount}
+                    onChange={e=>set('basics','dependentParentsCount',num(e.target.value))} required />
+                </Field>
+              </Row>
+            )}
+
+            {data.basics.maritalStatus === 'married' && (
+              <KidsEditor kids={data.basics.kids} onChange={(kids)=>set('basics','kids',kids)} />
+            )}
+          </Section>
+        )}
+
+        {activeTab === 'salary' && (
+          <>
+            <Section title="2. Salary structure">
+              <div className="section-note">
+                Based on your tax workbook: Basic, HRA, LTA, employer NPS, EPF, professional tax and rent help calculate old vs new regime more accurately. Use annual gross override only if your payslip gives one final annual number.
+              </div>
+              <Row>
+                {Object.keys(data.salary).map(k => (
+                  <Field key={k} label={salaryLabels[k] || prettify(k)}>
+                    <MoneyInput value={data.salary[k]} onChange={v=>set('salary',k,v)} />
+                  </Field>
+                ))}
+              </Row>
+              <div className="cashflow-preview success">
+                <div className="cashflow-title">Salary tax preview</div>
+                <div className="cashflow-grid">
+                  <span>Annual salary components: <strong>{fmt(salaryPreview.annualComponents)}</strong></span>
+                  <span>Annual gross used: <strong>{fmt(salaryPreview.annualGrossUsed)}</strong></span>
+                  <span>Annual HRA received: <strong>{fmt(salaryPreview.hraAnnual)}</strong></span>
+                  <span>Annual rent paid: <strong>{fmt(salaryPreview.rentAnnual)}</strong></span>
+                </div>
+              </div>
+            </Section>
+
+            <Section title="3. Cash-flow">
+              <Row>
+                <Field label="Monthly income after tax" required hint="Used for cash-flow/surplus. Example: 2,00,000">
+                  <MoneyInput value={data.income.monthlyAfterTax} onChange={v=>set('income','monthlyAfterTax',v)} required />
+                </Field>
+                <Field label="Annual bonus / variable" hint="Cash-flow bonus if not already in monthly net income">
+                  <MoneyInput value={data.income.bonusAnnual} onChange={v=>set('income','bonusAnnual',v)} />
+                </Field>
+                <Field label="Other monthly income">
+                  <MoneyInput value={data.income.otherMonthly} onChange={v=>set('income','otherMonthly',v)} />
+                </Field>
+                <Field label="Expected income growth % / yr">
+                  <input type="number" min="0" max="100" step="0.1" value={data.income.expectedGrowthPct}
+                    onChange={e=>set('income','expectedGrowthPct',num(e.target.value))} />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Fixed monthly expenses" required>
+                  <MoneyInput value={data.expenses.fixed} onChange={v=>set('expenses','fixed',v)} required />
+                </Field>
+                <Field label="Variable monthly expenses" required>
+                  <MoneyInput value={data.expenses.variable} onChange={v=>set('expenses','variable',v)} required />
+                </Field>
+                <Field label="Annual lump sums" required hint="Insurance, vacations, fees / year">
+                  <MoneyInput value={data.expenses.annual} onChange={v=>set('expenses','annual',v)} required />
+                </Field>
+                <Field label="Total monthly EMIs" required>
+                  <MoneyInput value={data.monthlyEmi} onChange={v=>setTop('monthlyEmi',v)} required />
+                </Field>
+              </Row>
+              <CashflowPreview preview={preview} />
+            </Section>
+          </>
+        )}
+
+        {activeTab === 'debt' && (
+          <Section title="4. Liabilities and emergency">
+            <div className="section-note">
+              Add only your emergency fund and debts here. Put all investment/current corpus values in “Existing investments and SIPs” to avoid duplicate counting.
+            </div>
+            <Row>
+              <Field label="Emergency fund" required hint="Liquid amount kept for emergencies">
+                <MoneyInput value={data.emergencyFund} onChange={v=>setTop('emergencyFund',v)} required />
+              </Field>
+              {Object.keys(empty.liabilities).map(k => (
+                <Field key={k} label={liabilityLabels[k] || prettify(k)}>
+                  <MoneyInput value={data.liabilities[k]} onChange={v=>set('liabilities',k,v)} />
+                </Field>
+              ))}
+            </Row>
+          </Section>
+        )}
+
+        {activeTab === 'insurance' && (
+          <Section title="5. Insurance">
+            <div className="section-note">Enter current cover. FinOS calculates required life and health cover from dependents, liabilities, expenses and goals.</div>
+            <Row>
+              <Field label="Life cover">
+                <MoneyInput value={data.insurance.life} onChange={v=>set('insurance','life',v)} />
+              </Field>
+              <Field label="Health cover">
+                <MoneyInput value={data.insurance.health} onChange={v=>set('insurance','health',v)} />
+              </Field>
+              <Field label="Critical illness cover">
+                <MoneyInput value={data.insurance.criticalIllness} onChange={v=>set('insurance','criticalIllness',v)} />
+              </Field>
+            </Row>
+          </Section>
+        )}
+
+        {activeTab === 'investments' && (
+          <Section title="6. Existing investments and SIPs">
+            <div className="section-note">This is the single source for investment/current corpus values: EPF, PPF, NPS, mutual funds, smallcase, stocks, FD/RD, gold, real estate and SIPs. Return % is auto-filled by category but editable.</div>
+            <InvestmentEditor investments={data.investments} onChange={v=>setTop('investments', v)} />
+          </Section>
+        )}
+
+        {activeTab === 'goals' && (
+          <Section title="7. Goals">
+            <div className="section-note">Structured goals replace free-text future plans. Add only goals you actually want.</div>
+            <GoalEditor goals={data.goals} onChange={v=>setTop('goals', v)} />
+          </Section>
+        )}
+
+        {activeTab === 'tax' && (
+          <Section title="8. Tax inputs FY 2026-27">
+            <div className="section-note">
+              Optional deductions/exemptions for old vs new regime. Salary details from the Salary tab are used automatically for HRA, employer NPS, EPF and professional tax where possible.
+            </div>
+            <Row>
+              {Object.keys(empty.tax).map(k => (
+                <Field key={k} label={taxLabels[k] || prettify(k)}>
+                  <MoneyInput value={data.tax[k]} onChange={v=>set('tax',k,v)} />
+                </Field>
+              ))}
+            </Row>
+          </Section>
+        )}
+
+        {activeTab === 'review' && (
+          <Section title="9. Review and generate">
+            <div className="review-grid">
+              <Kpi label="Annual gross salary used" value={fmt(salaryPreview.annualGrossUsed)} />
+              <Kpi label="Monthly cash-flow surplus" value={fmt(preview.monthlySurplus)} />
+              <Kpi label="Existing SIPs added" value={data.investments.length} />
+              <Kpi label="Custom goals added" value={data.goals.length} />
+            </div>
+            <div className="section-note">
+              Generate the plan after all tabs are complete. Recommendations remain capped to available surplus after existing SIPs.
+            </div>
+          </Section>
+        )}
 
         {err && <div className="err error-block">{err}</div>}
 
         <div className="actions">
-          <button type="submit" disabled={busy} className="primary">
-            {busy ? 'Calculating…' : 'Generate FinOS plan'}
-          </button>
+          {currentIndex > 0 && <button type="button" className="link" onClick={goBack}>← Back</button>}
+          {currentIndex < tabs.length - 1 && <button type="button" className="primary" onClick={goNext}>Next →</button>}
+          {currentIndex === tabs.length - 1 && (
+            <button type="submit" disabled={busy} className="primary">
+              {busy ? 'Calculating…' : 'Generate FinOS plan'}
+            </button>
+          )}
           <span className="muted small">Nothing is saved. Refresh to start over.</span>
         </div>
       </form>
@@ -639,6 +742,8 @@ function cleanProfile(profile) {
     ? Math.max(1, Number(cleaned.basics.dependentParentsCount) || 1)
     : 0
 
+  cleaned.salary = Object.fromEntries(Object.entries(cleaned.salary || {}).map(([k, v]) => [k, toNumber(v)]))
+
   cleaned.investments = cleaned.investments
     .filter(inv => toNumber(inv.currentValue) > 0 || toNumber(inv.monthlyAmount) > 0)
     .map((inv, i) => ({
@@ -677,6 +782,19 @@ function validate(profile) {
     return 'Please enter both name and age for each child, or remove the incomplete child row.'
   }
   return ''
+}
+
+function getSalaryPreview(profile) {
+  const s = profile.salary || {}
+  const annualComponents =
+    (toNumber(s.monthlyBasic) + toNumber(s.monthlyHra) + toNumber(s.monthlySpecialAllowance) +
+      toNumber(s.monthlyLta) + toNumber(s.monthlyBonus) + toNumber(s.monthlyEmployerNps)) * 12
+  return {
+    annualComponents,
+    annualGrossUsed: toNumber(s.annualGross) || annualComponents,
+    hraAnnual: toNumber(s.monthlyHra) * 12,
+    rentAnnual: toNumber(s.rentPaidMonthly) * 12,
+  }
 }
 
 function getCashflowPreview(profile) {

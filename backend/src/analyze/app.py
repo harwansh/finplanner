@@ -241,18 +241,61 @@ def validate_profile(profile):
 
 def compute_tax(profile):
     income = profile.get("income", {}) or {}
+    salary = profile.get("salary", {}) or {}
+    basics = profile.get("basics", {}) or {}
     tax = profile.get("tax", {}) or {}
 
-    gross_income = (
+    basic_annual = _num(salary.get("monthlyBasic")) * 12
+    hra_received = _num(salary.get("monthlyHra")) * 12
+    lta_received = _num(salary.get("monthlyLta")) * 12
+    special_allowance = _num(salary.get("monthlySpecialAllowance")) * 12
+    monthly_bonus = _num(salary.get("monthlyBonus")) * 12
+    employer_nps = _num(salary.get("monthlyEmployerNps")) * 12
+    employee_epf = _num(salary.get("monthlyEmployeeEpf")) * 12
+    salary_professional_tax = _num(salary.get("monthlyProfessionalTax")) * 12
+    rent_paid = _num(salary.get("rentPaidMonthly")) * 12
+    annual_gross_override = _num(salary.get("annualGross"))
+
+    salary_components_total = (
+        basic_annual
+        + hra_received
+        + lta_received
+        + special_allowance
+        + monthly_bonus
+        + employer_nps
+    )
+
+    fallback_income = (
         (_num(income.get("monthlyAfterTax")) + _num(income.get("otherMonthly"))) * 12
         + _num(income.get("bonusAnnual"))
-        + _num(tax.get("otherAnnualIncome"))
     )
+
+    gross_income = annual_gross_override or salary_components_total or fallback_income
+    gross_income += _num(tax.get("otherAnnualIncome"))
 
     standard_old = 50000
     standard_new = 75000
 
-    deduction_80c = min(150000, _num(tax.get("deduction80C")))
+    city_type = basics.get("cityTier")
+    metro_ratio = 0.50 if city_type in {"Metro", "Tier 1"} else 0.40
+    auto_hra_exemption = 0
+    if hra_received > 0 and basic_annual > 0 and rent_paid > 0:
+        auto_hra_exemption = max(
+            0,
+            min(
+                hra_received,
+                max(0, rent_paid - (0.10 * basic_annual)),
+                metro_ratio * basic_annual,
+            ),
+        )
+
+    hra = _num(tax.get("hraExemption")) or auto_hra_exemption
+    professional_tax = _num(tax.get("professionalTax")) + salary_professional_tax
+
+    deduction_80c = min(
+        150000,
+        _num(tax.get("deduction80C")) + employee_epf,
+    )
     deduction_80ccd_1b = min(50000, _num(tax.get("nps80CCD1B")))
     deduction_80d = _num(tax.get("health80D"))
     deduction_80g = _num(tax.get("donation80G"))
@@ -260,26 +303,47 @@ def compute_tax(profile):
     deduction_80tta_ttb = _num(tax.get("interest80TTA_TTB"))
     deduction_80eea = min(150000, _num(tax.get("homeLoan80EEA")))
     section_24b = min(200000, _num(tax.get("homeLoanInterest24B")))
-    hra = _num(tax.get("hraExemption"))
-    lta = _num(tax.get("ltaExemption"))
-    professional_tax = _num(tax.get("professionalTax"))
+    lta = _num(tax.get("ltaExemption")) or lta_received
+
+    employer_nps_old = min(employer_nps, basic_annual * 0.10) if basic_annual > 0 else employer_nps
+    employer_nps_new = min(employer_nps, basic_annual * 0.14) if basic_annual > 0 else employer_nps
 
     old_deductions = (
-        standard_old + deduction_80c + deduction_80ccd_1b + deduction_80d
-        + deduction_80g + deduction_80e + deduction_80tta_ttb
-        + deduction_80eea + section_24b + hra + lta + professional_tax
+        standard_old
+        + hra
+        + lta
+        + professional_tax
+        + deduction_80c
+        + deduction_80ccd_1b
+        + employer_nps_old
+        + deduction_80d
+        + deduction_80g
+        + deduction_80e
+        + deduction_80tta_ttb
+        + deduction_80eea
+        + section_24b
     )
-    new_deductions = standard_new
+
+    new_deductions = standard_new + employer_nps_new
 
     old_taxable = max(0, gross_income - old_deductions)
     new_taxable = max(0, gross_income - new_deductions)
 
-    old_tax_with_cess = slab_tax_old(old_taxable) * 1.04
-    new_tax_with_cess = slab_tax_new_2025(new_taxable) * 1.04
+    old_tax = slab_tax_old(old_taxable)
+    new_tax = slab_tax_new_2025(new_taxable)
+
+    if old_taxable <= 500000:
+        old_tax = 0
+    if new_taxable <= 1200000:
+        new_tax = 0
+
+    old_tax_with_cess = old_tax * 1.04
+    new_tax_with_cess = new_tax * 1.04
 
     preferred = "Old" if old_tax_with_cess < new_tax_with_cess else "New"
     return {
         "grossIncome": _money(gross_income),
+        "salaryComponentsTotal": _money(salary_components_total),
         "oldDeductions": _money(old_deductions),
         "newDeductions": _money(new_deductions),
         "oldTaxable": _money(old_taxable),
@@ -291,17 +355,20 @@ def compute_tax(profile):
         "deductionBreakdown": {
             "standardDeductionOld": _money(standard_old),
             "standardDeductionNew": _money(standard_new),
+            "autoHraExemption": _money(auto_hra_exemption),
+            "hraUsed": _money(hra),
+            "lta": _money(lta),
+            "professionalTax": _money(professional_tax),
             "section80C": _money(deduction_80c),
             "section80CCD1B": _money(deduction_80ccd_1b),
+            "employerNpsOld": _money(employer_nps_old),
+            "employerNpsNew": _money(employer_nps_new),
             "section80D": _money(deduction_80d),
             "section80G": _money(deduction_80g),
             "section80E": _money(deduction_80e),
             "section80TTA_TTB": _money(deduction_80tta_ttb),
             "section80EEA": _money(deduction_80eea),
             "section24B": _money(section_24b),
-            "hra": _money(hra),
-            "lta": _money(lta),
-            "professionalTax": _money(professional_tax),
         },
     }
 
@@ -648,6 +715,7 @@ def build_report(profile, summary, plan, ai_notes=None):
         "### 5. Tax Snapshot FY 2025-26",
         "",
         f"- Gross annual income considered: {_fmt_money(tax['grossIncome'])}",
+        f"- Salary components total: {_fmt_money(tax.get('salaryComponentsTotal'))}",
         f"- Old regime deductions considered: {_fmt_money(tax.get('oldDeductions'))}",
         f"- New regime deductions considered: {_fmt_money(tax.get('newDeductions'))}",
         f"- Old regime taxable income: {_fmt_money(tax.get('oldTaxable'))}",
