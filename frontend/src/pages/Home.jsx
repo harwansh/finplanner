@@ -53,6 +53,8 @@ export default function Home() {
   const setTop = (field, val) => setData(d => ({ ...d, [field]: val }))
   const num = v => v === '' || v == null ? '' : Number(v)
 
+  const preview = getCashflowPreview(data)
+
   const togglePref = (option) => {
     setData(d => {
       const cur = d.investmentPreferences
@@ -65,9 +67,16 @@ export default function Home() {
 
   const submit = async (e) => {
     e.preventDefault()
+    const validationError = validate(data)
+    if (validationError) {
+      setErr(validationError)
+      setResult(null)
+      return
+    }
+
     setBusy(true); setErr(''); setResult(null)
     try {
-      const r = await analyze(data)
+      const r = await analyze(cleanProfile(data))
       setResult(r)
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
     } catch (e) {
@@ -104,7 +113,17 @@ export default function Home() {
           <Row>
             <Field label="Marital status">
               <select value={data.basics.maritalStatus}
-                onChange={e=>set('basics','maritalStatus',e.target.value)}>
+                onChange={e=>{
+                  const maritalStatus = e.target.value
+                  setData(d => ({
+                    ...d,
+                    basics: {
+                      ...d.basics,
+                      maritalStatus,
+                      kids: maritalStatus === 'married' ? d.basics.kids : [],
+                    }
+                  }))
+                }}>
                 <option value="single">Single</option>
                 <option value="married">Married</option>
                 <option value="divorced">Divorced</option>
@@ -144,15 +163,27 @@ export default function Home() {
           <Row>
             <Field label="Parents financially dependent?">
               <select value={data.basics.parentsDependent ? 'yes' : 'no'}
-                onChange={e=>set('basics','parentsDependent', e.target.value === 'yes')}>
+                onChange={e=>{
+                  const parentsDependent = e.target.value === 'yes'
+                  setData(d => ({
+                    ...d,
+                    basics: {
+                      ...d.basics,
+                      parentsDependent,
+                      dependentParentsCount: parentsDependent
+                        ? Math.max(1, Number(d.basics.dependentParentsCount) || 1)
+                        : 0,
+                    }
+                  }))
+                }}>
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
               </select>
             </Field>
             {data.basics.parentsDependent && (
               <Field label="Number of dependent parents">
-                <input type="number" min="0" max="2" value={data.basics.dependentParentsCount}
-                  onChange={e=>set('basics','dependentParentsCount',num(e.target.value))} />
+                <input type="number" min="1" max="2" value={data.basics.dependentParentsCount}
+                  onChange={e=>set('basics','dependentParentsCount',num(e.target.value))} required />
               </Field>
             )}
           </Row>
@@ -198,6 +229,7 @@ export default function Home() {
                 onChange={e=>setTop('monthlyEmi',num(e.target.value))} />
             </Field>
           </Row>
+          <CashflowPreview preview={preview} />
         </Section>
 
         <Section title="4. Assets (current value, ₹)">
@@ -247,7 +279,7 @@ export default function Home() {
           <div className="muted small" style={{marginBottom:6}}>Risk appetite</div>
           <div className="radio-row">
             {['conservative','moderate','aggressive'].map(r => (
-              <label key={r} className="radio">
+              <label key={r} className={`radio ${data.risk === r ? 'selected' : ''}`}>
                 <input type="radio" checked={data.risk===r}
                   onChange={()=>setData(d=>({...d, risk:r}))} /> {r}
               </label>
@@ -309,16 +341,39 @@ function Results({ result }) {
       {summary && (
         <div className="card">
           <h2>📊 Your numbers</h2>
+          {summary.monthlySurplus <= 0 && (
+            <div className="err" style={{marginBottom: 12}}>
+              Your plan is not currently feasible. Monthly expenses exceed average monthly income by {fmt(Math.abs(summary.monthlySurplus))}. Fix cash flow before starting new long-term SIPs.
+            </div>
+          )}
+          {summary.warnings?.length > 0 && (
+            <ul className="muted small">
+              {summary.warnings.map((warning, i) => <li key={i}>{warning}</li>)}
+            </ul>
+          )}
           <div className="kpi-grid">
             <Kpi label="Net worth" value={fmt(summary.netWorth)} big />
             <Kpi label="Total assets" value={fmt(summary.totalAssets)} />
             <Kpi label="Total liabilities" value={fmt(summary.totalLiabilities)} />
-            <Kpi label="Monthly income" value={fmt(summary.monthlyIncome)} />
+            <Kpi label="Average monthly income" value={fmt(summary.monthlyIncome)} />
             <Kpi label="Monthly expenses" value={fmt(summary.monthlyExpenses)} />
             <Kpi label="Monthly surplus" value={fmt(summary.monthlySurplus)} />
             <Kpi label="Savings rate" value={`${summary.savingsRatePct}%`} />
             <Kpi label="Emergency fund" value={`${summary.emergencyFundMonths} mo`} />
           </div>
+          {summary.monthlyExpenseBreakdown && (
+            <div className="muted small" style={{marginTop: 12}}>
+              Expense breakdown: fixed {fmt(summary.monthlyExpenseBreakdown.fixed)}
+              {' '}+ variable {fmt(summary.monthlyExpenseBreakdown.variable)}
+              {' '}+ annual prorated {fmt(summary.monthlyExpenseBreakdown.annualProrated)}
+              {' '}+ EMI {fmt(summary.monthlyExpenseBreakdown.emi)}
+            </div>
+          )}
+          {summary.monthlyBonusProrated > 0 && (
+            <div className="muted small" style={{marginTop: 6}}>
+              Average monthly income includes prorated annual bonus of {fmt(summary.monthlyBonusProrated)}.
+            </div>
+          )}
         </div>
       )}
 
@@ -357,13 +412,26 @@ function KidsEditor({ kids, onChange }) {
             <input value={kid.name} onChange={e=>update(i,'name',e.target.value)} />
           </Field>
           <Field label="Age">
-            <input type="number" value={kid.age}
+            <input type="number" min="0" value={kid.age}
               onChange={e=>update(i,'age', e.target.value === '' ? '' : Number(e.target.value))} />
           </Field>
           <button type="button" onClick={()=>remove(i)} className="link">Remove</button>
         </Row>
       ))}
       <button type="button" onClick={add} className="link">+ Add child</button>
+    </div>
+  )
+}
+
+function CashflowPreview({ preview }) {
+  return (
+    <div className="muted small" style={{marginTop: 10}}>
+      Monthly expense preview: fixed {fmt(preview.fixed)}
+      {' '}+ variable {fmt(preview.variable)}
+      {' '}+ annual prorated {fmt(preview.annualProrated)}
+      {' '}+ EMI {fmt(preview.emi)}
+      {' '}= {fmt(preview.monthlyExpenses)}.
+      {' '}Estimated surplus: {fmt(preview.monthlySurplus)}.
     </div>
   )
 }
@@ -378,6 +446,63 @@ const Row = ({ children }) => <div className="row">{children}</div>
 const Field = ({ label, children }) => (
   <label className="field"><span>{label}</span>{children}</label>
 )
+
+function cleanProfile(profile) {
+  const cleaned = structuredClone(profile)
+  const kids = cleaned.basics.maritalStatus === 'married'
+    ? cleaned.basics.kids
+        .filter(kid => kid.name?.trim() || kid.age !== '')
+        .map((kid, i) => ({
+          name: kid.name?.trim() || `Child ${i + 1}`,
+          age: Number(kid.age) || 0,
+        }))
+    : []
+
+  cleaned.basics.kids = kids
+  cleaned.basics.dependentParentsCount = cleaned.basics.parentsDependent
+    ? Math.max(1, Number(cleaned.basics.dependentParentsCount) || 1)
+    : 0
+
+  return cleaned
+}
+
+function validate(profile) {
+  if (profile.basics.parentsDependent && Number(profile.basics.dependentParentsCount) < 1) {
+    return 'Please enter at least 1 dependent parent, or select "No" for parent dependency.'
+  }
+
+  const partialKid = profile.basics.kids.find(kid => Boolean(kid.name?.trim()) !== (kid.age !== ''))
+  if (profile.basics.maritalStatus === 'married' && partialKid) {
+    return 'Please enter both name and age for each child, or remove the incomplete child row.'
+  }
+
+  return ''
+}
+
+function getCashflowPreview(profile) {
+  const recurringIncome = toNumber(profile.income.monthlyAfterTax) + toNumber(profile.income.otherMonthly)
+  const proratedBonus = toNumber(profile.income.bonusAnnual) / 12
+  const monthlyIncome = recurringIncome + proratedBonus
+  const fixed = toNumber(profile.expenses.fixed)
+  const variable = toNumber(profile.expenses.variable)
+  const annualProrated = toNumber(profile.expenses.annual) / 12
+  const emi = toNumber(profile.monthlyEmi)
+  const monthlyExpenses = fixed + variable + annualProrated + emi
+
+  return {
+    fixed,
+    variable,
+    annualProrated,
+    emi,
+    monthlyExpenses,
+    monthlySurplus: monthlyIncome - monthlyExpenses,
+  }
+}
+
+function toNumber(value) {
+  return value === '' || value == null ? 0 : Number(value)
+}
+
 function prettify(k) {
   return k.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase())
 }
