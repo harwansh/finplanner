@@ -1,0 +1,2 @@
+# No runtime dependencies are required for the demo handler.
+# Add boto3 only when enabling Bedrock fallback in AWS Lambda.
