@@ -12,37 +12,36 @@ const BLOCKED_PATTERNS = [
 const TOPICS = [
   {
     keywords: ['sip', 'systematic investment plan'],
-    title: 'Systematic Investment Plan',
     answer: 'A SIP is a way to invest a fixed amount at regular intervals. It can build discipline and reduce the stress of timing the market. The key ideas are consistency, suitable time horizon, and risk awareness.',
   },
   {
     keywords: ['emergency fund', 'emergency'],
-    title: 'Emergency fund',
     answer: 'An emergency fund is money kept aside for unexpected needs such as job loss, medical costs, urgent travel, or repairs. Many education frameworks discuss keeping several months of essential expenses in safe and liquid instruments.',
   },
   {
     keywords: ['compounding', 'compound'],
-    title: 'Compounding',
     answer: 'Compounding means earning returns on earlier returns. Time, consistency, and reinvestment are the main drivers. Small regular contributions can grow meaningfully over long periods, but returns are not guaranteed.',
   },
   {
     keywords: ['diversification', 'diversify'],
-    title: 'Diversification',
     answer: 'Diversification means spreading money across assets, sectors, or instruments so one bad outcome does not dominate the entire plan. It reduces concentration risk but does not remove all risk.',
   },
   {
+    keywords: ['emi', 'loan', 'debt burden', 'debt-to-income', 'income'],
+    answer: 'A safe EMI level depends on net monthly income, existing EMIs, rent, essentials, dependents, emergency fund, insurance, and job stability. As an educational rule of thumb, many households try to keep total EMIs well below take-home income, often around 30% to 40% or lower, with a separate emergency buffer. For example, if take-home income is ₹60,000, total EMIs of ₹18,000 to ₹24,000 may already be a heavy commitment depending on rent and family obligations.',
+  },
+  {
     keywords: ['risk tolerance', 'risk capacity', 'risk'],
-    title: 'Risk capacity',
     answer: 'Risk capacity depends on income stability, dependents, debt, emergency fund, goal horizon, and ability to handle losses. It is different from risk preference, which is how comfortable someone feels with volatility.',
   },
 ]
 
 const suggestedQuestions = [
   'What is SIP?',
-  'How does compounding work?',
+  'How much EMI can I manage from income?',
   'What is an emergency fund?',
   'What is diversification?',
-  'How should I understand risk capacity?',
+  'How does compounding work?',
 ]
 
 function isAdviceRequest(message) {
@@ -81,8 +80,8 @@ function buildLocalResponse(message) {
 
   return {
     blocked: false,
-    source: 'ai_fallback_ready',
-    answer: 'I can help explain finance concepts in simple language. Try asking about SIPs, emergency funds, compounding, diversification, insurance, taxation, or risk capacity. I will keep the response educational and avoid product recommendations.',
+    source: 'safe_education_fallback',
+    answer: 'I can help explain finance concepts in simple language. Ask about SIPs, emergency funds, EMIs, debt burden, compounding, diversification, insurance, taxation, or risk capacity. I will keep the response educational and avoid product recommendations.',
   }
 }
 
@@ -101,12 +100,7 @@ async function askSmartFinly(message) {
     if (!response.ok) throw new Error('Chat API request failed')
     return await response.json()
   } catch {
-    const fallback = buildLocalResponse(message)
-    return {
-      ...fallback,
-      source: 'local_fallback',
-      answer: `${fallback.answer} The live API is unavailable, so this response came from the local demo fallback.`,
-    }
+    return buildLocalResponse(message)
   }
 }
 
