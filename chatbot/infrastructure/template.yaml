@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SmartFinly education-only chatbot API
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 20
+    MemorySize: 256
+
+Resources:
+  SmartFinlyChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: chat_handler.handler
+      CodeUri: ../backend
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowHeaders:
+            - content-type
+            - authorization
+          AllowMethods:
+            - OPTIONS
+            - POST
+
+Outputs:
+  ChatApiUrl:
+    Description: Lambda Function URL for SmartFinly chat
+    Value: !GetAtt SmartFinlyChatFunctionUrl.FunctionUrl
