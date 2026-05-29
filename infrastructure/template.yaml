@@ -10,6 +10,15 @@ Parameters:
   BedrockRegion:
     Type: String
     Default: us-east-1
+  ChatEmbeddingModelId:
+    Type: String
+    Default: amazon.titan-embed-text-v2:0
+  ChatTopK:
+    Type: Number
+    Default: 4
+  ChatSimilarityThreshold:
+    Type: String
+    Default: '0.35'
 
 Resources:
   AnalyzeFunction:
@@ -46,6 +55,46 @@ Resources:
             - Content-Type
           MaxAge: 600
 
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../backend/src/chat/
+      Handler: app.handler
+      Runtime: python3.12
+      Architectures: [arm64]
+      Timeout: 60
+      MemorySize: 1024
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_EMBED_MODEL_ID: !Ref ChatEmbeddingModelId
+          BEDROCK_REGION: !Ref BedrockRegion
+          CHAT_TOP_K: !Ref ChatTopK
+          CHAT_SIMILARITY_THRESHOLD: !Ref ChatSimilarityThreshold
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: "*"
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - https://www.smartfinly.com
+            - https://smartfinly.com
+            - http://localhost:5173
+            - http://localhost:5174
+          AllowMethods:
+            - POST
+          AllowHeaders:
+            - Content-Type
+            - Authorization
+          ExposeHeaders:
+            - Content-Type
+          MaxAge: 600
+
 Outputs:
   ApiUrl:
     Value: !GetAtt AnalyzeFunctionUrl.FunctionUrl
+  ChatApiUrl:
+    Value: !GetAtt ChatFunctionUrl.FunctionUrl
