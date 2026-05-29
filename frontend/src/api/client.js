@@ -28,7 +28,15 @@ function parseApiError(status, text) {
   return message
 }
 
+function parseChatError(status, payload) {
+  if (payload?.answer) return payload.answer
+  if (payload?.error) return payload.error
+  if (status === 400) return 'Please enter a finance education question without personal identifiers.'
+  return 'SmartFinly could not answer right now. Please try again in a moment.'
+}
+
 const API_URL = import.meta.env.VITE_API_URL
+const CHAT_API_URL = import.meta.env.VITE_CHAT_API_URL
 
 export async function analyze(profile, accessToken = '') {
   if (!API_URL) {
@@ -73,5 +81,40 @@ export async function analyze(profile, accessToken = '') {
   }
 
   trackEvent('api_request_succeeded')
+  return payload
+}
+
+export async function chat(message, accessToken = '') {
+  if (!CHAT_API_URL) {
+    throw new Error('The learning chat is not configured yet.')
+  }
+
+  const headers = { 'Content-Type': 'application/json' }
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`
+
+  trackEvent('chat_request_started')
+  let res
+  try {
+    res = await fetch(CHAT_API_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ message }),
+    })
+  } catch {
+    trackEvent('chat_request_failed', { reason: 'network_error' })
+    throw new Error('We could not reach the learning chat. Please check your connection and try again.')
+  }
+
+  const payload = await res.json().catch(async () => {
+    const text = await res.text().catch(() => '')
+    return { error: text || res.statusText }
+  })
+
+  if (!res.ok) {
+    trackEvent('chat_request_failed', { status: res.status })
+    throw new Error(parseChatError(res.status, payload))
+  }
+
+  trackEvent('chat_request_succeeded', { source: payload.source })
   return payload
 }
