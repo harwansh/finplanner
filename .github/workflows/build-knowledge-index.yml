@@ -1,0 +1,40 @@
+name: Build Knowledge Index
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '**.pdf'
+      - 'chatbot/backend/ingest.py'
+      - '.github/workflows/build-knowledge-index.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install -r chatbot/backend/requirements.txt
+
+      - name: Generate backend knowledge index
+        run: python chatbot/backend/ingest.py --pdf-dir . --output chatbot/backend/knowledge/index/index.json
+
+      - name: Copy knowledge index to deployed frontend
+        run: |
+          mkdir -p frontend/public
+          cp chatbot/backend/knowledge/index/index.json frontend/public/knowledge-index.json
+
+      - name: Commit generated knowledge index
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Build knowledge index from PDFs
+          file_pattern: chatbot/backend/knowledge/index/index.json frontend/public/knowledge-index.json
