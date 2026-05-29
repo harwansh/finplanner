@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const BLOCKED_PATTERNS = [
   /should\s+i\s+(buy|sell|invest)/i,
@@ -121,6 +121,12 @@ export default function App() {
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const messagesRef = useRef(null)
+  const latestMessageRef = useRef(null)
+
+  useEffect(() => {
+    latestMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [messages, isLoading])
 
   async function send(text) {
     const content = String(text || input).trim()
@@ -160,9 +166,10 @@ export default function App() {
           <span className="status-pill">Online</span>
         </div>
 
-        <div className="messages" aria-live="polite">
+        <div className="messages" ref={messagesRef} aria-live="polite">
           {messages.map((message, index) => <Message key={`${message.role}-${index}`} message={message} />)}
           {isLoading ? <Message message={{ role: 'assistant', content: 'Thinking...' }} /> : null}
+          <div ref={latestMessageRef} aria-hidden="true" />
         </div>
 
         <div className="suggestions" aria-label="Suggested questions">
