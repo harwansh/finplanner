@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "description": "Demo index generated from education-only finance notes. Replace with chunks extracted from PDFs in production.",
+  "chunks": [
+    {
+      "id": "sip-001",
+      "source": "SmartFinly Education Notes",
+      "title": "Systematic Investment Plan",
+      "text": "A Systematic Investment Plan, or SIP, is a method of investing a fixed amount at regular intervals. It can support investing discipline and reduce the stress of trying to time the market. SIP outcomes depend on the chosen asset, time horizon, market risk, costs, and investor behaviour."
+    },
+    {
+      "id": "emergency-001",
+      "source": "SmartFinly Education Notes",
+      "title": "Emergency Fund",
+      "text": "An emergency fund is money kept aside for unexpected events such as job loss, medical expenses, urgent travel, or repairs. Many education frameworks discuss keeping several months of essential expenses in liquid and relatively safe instruments before taking higher investment risk."
+    },
+    {
+      "id": "emi-001",
+      "source": "SmartFinly Education Notes",
+      "title": "EMI and Income Capacity",
+      "text": "EMI affordability should be assessed from net take-home income after essential expenses, rent, existing EMIs, insurance, dependents, and emergency fund contributions. As an educational rule of thumb, total EMIs above 30 to 40 percent of take-home income can become stressful for many households, especially when income is unstable or dependents are present."
+    },
+    {
+      "id": "diversification-001",
+      "source": "SmartFinly Education Notes",
+      "title": "Diversification",
+      "text": "Diversification means spreading money across assets, sectors, or instruments so that one bad outcome does not dominate the full plan. Diversification can reduce concentration risk, but it does not eliminate market risk, liquidity risk, inflation risk, or behaviour risk."
+    },
+    {
+      "id": "risk-001",
+      "source": "SmartFinly Education Notes",
+      "title": "Risk Capacity",
+      "text": "Risk capacity depends on age, income stability, dependents, emergency fund, debt burden, goal horizon, liquidity needs, and ability to handle losses. Risk capacity is different from risk preference, which is how comfortable a person feels with volatility."
+    },
+    {
+      "id": "compounding-001",
+      "source": "SmartFinly Education Notes",
+      "title": "Compounding",
+      "text": "Compounding means earning returns on earlier returns. The main drivers are time, consistency, reinvestment, and the actual return earned. Compounding is powerful over long periods, but it does not guarantee returns and can be interrupted by withdrawals, poor asset choice, high costs, or market losses."
+    }
+  ]
+}
