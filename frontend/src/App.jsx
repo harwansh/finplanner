@@ -1,26 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
-import { buildKnowledgeAnswer, loadKnowledgeIndex, searchKnowledgeIndex } from './localKnowledge.js'
+import { loadKnowledgeIndex } from './localKnowledge.js'
 
 const suggestedQuestions = [
-  'What is SIP?',
-  'How much EMI can I manage from income?',
+  'Explain SIP in simple words',
+  'How should I think about EMI affordability?',
   'What is an emergency fund?',
-  'How much health insurance should I have?',
-  'How does compounding work?',
+  'How much health insurance should I consider?',
+  'Explain compounding with an example',
 ]
 
 function fallbackAnswer() {
-  return 'I could not find a strong match in the local PDF knowledge base. Connect VITE_CHAT_API_URL in Amplify so unmatched questions can be routed to the backend fallback.'
+  return 'I am ready to answer, but the AI backend is not connected on this deployment yet. Please connect VITE_CHAT_API_URL in Amplify so I can read the PDF knowledge base and generate a proper answer.'
 }
 
-async function getAnswer(message, localIndex) {
+async function getAnswer(message) {
   const trimmed = String(message || '').trim()
-  if (!trimmed) return 'Please ask a finance education question to get started.'
+  if (!trimmed) return 'Ask me any finance education question to get started.'
 
-  const localMatch = searchKnowledgeIndex(trimmed, localIndex)
-  if (localMatch) return buildKnowledgeAnswer(localMatch)
-
-  const apiUrl = import.meta.env.VITE_CHAT_API_URL || import.meta.env.VITE_API_URL
+  const apiUrl = import.meta.env.VITE_CHAT_API_URL
   if (!apiUrl) return fallbackAnswer()
 
   try {
@@ -38,17 +35,29 @@ async function getAnswer(message, localIndex) {
 }
 
 function Message({ message }) {
-  return <div className={`message ${message.role}`}><div className="bubble">{message.content}</div></div>
+  return (
+    <div className={`message ${message.role}`}>
+      <div className="avatar">{message.role === 'assistant' ? 'S' : 'Y'}</div>
+      <div className="bubble">{message.content}</div>
+    </div>
+  )
 }
 
 export default function App() {
-  const [messages, setMessages] = useState([{ role: 'assistant', content: 'Hi, I am SmartFinly. I search the local PDF knowledge base first. If no match is found, I use the backend fallback.' }])
+  const [messages, setMessages] = useState([
+    {
+      role: 'assistant',
+      content: 'Hi, I am SmartFinly. Ask me a finance question. I use your PDF knowledge base first, then AI fallback when the PDFs do not have enough context.',
+    },
+  ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [localIndex, setLocalIndex] = useState(null)
+  const [pdfCount, setPdfCount] = useState(null)
   const messagesRef = useRef(null)
 
-  useEffect(() => { loadKnowledgeIndex().then(setLocalIndex) }, [])
+  useEffect(() => {
+    loadKnowledgeIndex().then((index) => setPdfCount(index?.pdf_count || null))
+  }, [])
 
   useEffect(() => {
     const container = messagesRef.current
@@ -61,7 +70,7 @@ export default function App() {
     setInput('')
     setIsLoading(true)
     setMessages((current) => [...current, { role: 'user', content }])
-    const answer = await getAnswer(content, localIndex)
+    const answer = await getAnswer(content)
     setMessages((current) => [...current, { role: 'assistant', content: answer }])
     setIsLoading(false)
   }
@@ -75,19 +84,35 @@ export default function App() {
     <main className="chatbot-page">
       <section className="hero" aria-label="SmartFinly chatbot overview">
         <p className="eyebrow">SmartFinly</p>
-        <h1>Finance education chatbot</h1>
-        <p className="subtitle">Local PDF knowledge base first. Backend fallback only when no PDF match is found.</p>
+        <h1>Your finance learning assistant</h1>
+        <p className="subtitle">Ask questions in plain English. SmartFinly reads your finance PDFs, explains the answer clearly, and uses AI fallback only when the PDFs do not cover the topic.</p>
       </section>
+
       <section className="chat-shell" aria-label="SmartFinly chatbot">
-        <div className="chat-header"><div><strong>SmartFinly Chat</strong><span>{localIndex?.pdf_count ? `${localIndex.pdf_count} PDFs indexed` : 'Loading PDF index'}</span></div><span className="status-pill">Online</span></div>
+        <div className="chat-header">
+          <div>
+            <strong>SmartFinly Chat</strong>
+            <span>{pdfCount ? `${pdfCount} knowledge PDFs available` : 'PDF-grounded AI assistant'}</span>
+          </div>
+          <span className="status-pill">Private beta</span>
+        </div>
+
         <div className="messages" ref={messagesRef} aria-live="polite">
           {messages.map((message, index) => <Message key={`${message.role}-${index}`} message={message} />)}
-          {isLoading ? <Message message={{ role: 'assistant', content: 'Thinking...' }} /> : null}
+          {isLoading ? <Message message={{ role: 'assistant', content: 'Reading the knowledge base and preparing an answer...' }} /> : null}
         </div>
-        <div className="suggestions" aria-label="Suggested questions">{suggestedQuestions.map((question) => <button key={question} type="button" onClick={() => send(question)} disabled={isLoading}>{question}</button>)}</div>
-        <form className="composer" onSubmit={onSubmit}><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask a finance concept question..." aria-label="Message" disabled={isLoading} /><button type="submit" disabled={isLoading}>{isLoading ? 'Sending' : 'Send'}</button></form>
+
+        <div className="suggestions" aria-label="Suggested questions">
+          {suggestedQuestions.map((question) => <button key={question} type="button" onClick={() => send(question)} disabled={isLoading}>{question}</button>)}
+        </div>
+
+        <form className="composer" onSubmit={onSubmit}>
+          <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask about SIP, tax, insurance, EMI, retirement..." aria-label="Message" disabled={isLoading} />
+          <button type="submit" disabled={isLoading}>{isLoading ? 'Sending' : 'Ask'}</button>
+        </form>
       </section>
-      <footer className="disclaimer">SmartFinly is for education only.</footer>
+
+      <footer className="disclaimer">Education only. Not investment, tax, legal, insurance, buy/sell, or product-selection advice.</footer>
     </main>
   )
 }
