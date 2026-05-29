@@ -1,0 +1,1 @@
+{"version":1,"embedding_model":"amazon.titan-embed-text-v2:0","region":"us-east-1","note":"Run backend/scripts/ingest.py --force to rebuild this metadata and index.faiss from the repository PDFs.","chunk_count":0,"chunks":[]}
