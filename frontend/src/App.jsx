@@ -31,6 +31,10 @@ const TOPICS = [
     answer: 'A safe EMI level depends on net monthly income, existing EMIs, rent, essentials, dependents, emergency fund, insurance, and job stability. As an educational rule of thumb, many households try to keep total EMIs well below take-home income, often around 30% to 40% or lower, with a separate emergency buffer. For example, if take-home income is ₹60,000, total EMIs of ₹18,000 to ₹24,000 may already be a heavy commitment depending on rent and family obligations.',
   },
   {
+    keywords: ['health insurance', 'medical insurance', 'insurance cover', 'insurance'],
+    answer: 'Health insurance needs depend on city, age, family size, employer cover, existing illnesses, dependents, hospital costs, and emergency savings. Education frameworks usually treat insurance as protection before investing. A young single person and a family with children or parents will need very different cover levels, so compare likely hospital costs and avoid relying only on employer insurance.',
+  },
+  {
     keywords: ['risk tolerance', 'risk capacity', 'risk'],
     answer: 'Risk capacity depends on income stability, dependents, debt, emergency fund, goal horizon, and ability to handle losses. It is different from risk preference, which is how comfortable someone feels with volatility.',
   },
@@ -40,7 +44,7 @@ const suggestedQuestions = [
   'What is SIP?',
   'How much EMI can I manage from income?',
   'What is an emergency fund?',
-  'What is diversification?',
+  'How much health insurance should I have?',
   'How does compounding work?',
 ]
 
@@ -81,14 +85,24 @@ function buildLocalResponse(message) {
   return {
     blocked: false,
     source: 'safe_education_fallback',
-    answer: 'I can help explain finance concepts in simple language. Ask about SIPs, emergency funds, EMIs, debt burden, compounding, diversification, insurance, taxation, or risk capacity. I will keep the response educational and avoid product recommendations.',
+    answer: 'I can help explain finance concepts in simple language. Ask about SIPs, emergency funds, EMIs, health insurance, debt burden, compounding, diversification, taxation, or risk capacity. I will keep the response educational and avoid product recommendations.',
+  }
+}
+
+function backendNotConnectedResponse() {
+  return {
+    blocked: false,
+    source: 'backend_not_connected',
+    answer: 'The live PDF/AI backend is not connected yet. Set VITE_CHAT_API_URL in Amplify to the Lambda Function URL, then redeploy. After that, answers will come from the PDF knowledge base first and AI fallback second.',
   }
 }
 
 async function askSmartFinly(message) {
   const apiUrl = import.meta.env.VITE_CHAT_API_URL || import.meta.env.VITE_API_URL
 
-  if (!apiUrl) return buildLocalResponse(message)
+  if (!apiUrl) {
+    return import.meta.env.DEV ? buildLocalResponse(message) : backendNotConnectedResponse()
+  }
 
   try {
     const response = await fetch(apiUrl, {
@@ -100,7 +114,7 @@ async function askSmartFinly(message) {
     if (!response.ok) throw new Error('Chat API request failed')
     return await response.json()
   } catch {
-    return buildLocalResponse(message)
+    return import.meta.env.DEV ? buildLocalResponse(message) : backendNotConnectedResponse()
   }
 }
 
@@ -122,10 +136,11 @@ export default function App() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesRef = useRef(null)
-  const latestMessageRef = useRef(null)
 
   useEffect(() => {
-    latestMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const container = messagesRef.current
+    if (!container) return
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
   }, [messages, isLoading])
 
   async function send(text) {
@@ -169,7 +184,6 @@ export default function App() {
         <div className="messages" ref={messagesRef} aria-live="polite">
           {messages.map((message, index) => <Message key={`${message.role}-${index}`} message={message} />)}
           {isLoading ? <Message message={{ role: 'assistant', content: 'Thinking...' }} /> : null}
-          <div ref={latestMessageRef} aria-hidden="true" />
         </div>
 
         <div className="suggestions" aria-label="Suggested questions">
