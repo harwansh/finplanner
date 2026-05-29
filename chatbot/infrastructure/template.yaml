@@ -2,11 +2,30 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: SmartFinly education-only chatbot API
 
+Parameters:
+  EnableBedrockFallback:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  BedrockModelId:
+    Type: String
+    Default: amazon.nova-lite-v1:0
+  BedrockRegion:
+    Type: String
+    Default: us-east-1
+
 Globals:
   Function:
     Runtime: python3.12
-    Timeout: 20
-    MemorySize: 256
+    Timeout: 25
+    MemorySize: 512
+    Environment:
+      Variables:
+        ENABLE_BEDROCK_FALLBACK: !Ref EnableBedrockFallback
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        BEDROCK_REGION: !Ref BedrockRegion
 
 Resources:
   SmartFinlyChatFunction:
@@ -14,6 +33,12 @@ Resources:
     Properties:
       Handler: chat_handler.handler
       CodeUri: ../backend
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: !Sub arn:aws:bedrock:${BedrockRegion}:${AWS::AccountId}:foundation-model/${BedrockModelId}
       FunctionUrlConfig:
         AuthType: NONE
         Cors:
