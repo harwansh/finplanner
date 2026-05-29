@@ -11,6 +11,12 @@ const STARTER_MESSAGES = [
   'How much emergency fund should I keep?',
 ]
 
+const SENSITIVE_RE = /(aadhaar|aadhar|pan|otp|password|passcode|secret|token|bank.?account|account.?number|ifsc|upi|vpa|\b[A-Z]{5}[0-9]{4}[A-Z]\b|\b[2-9][0-9]{3}\s?[0-9]{4}\s?[0-9]{4}\b)/i
+
+function hasSensitiveData(message) {
+  return SENSITIVE_RE.test(message)
+}
+
 function SourceBadge({ source }) {
   return <span className="chat-source-badge">{source === 'knowledge_base' ? 'From study material' : 'AI explanation'}</span>
 }
@@ -64,8 +70,22 @@ export default function Chat() {
     const message = text.trim()
     if (!message || isLoading) return
     setInput('')
-    setIsLoading(true)
     setMessages((current) => [...current, { role: 'user', content: message }])
+
+    if (hasSensitiveData(message)) {
+      setMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          content: 'Please do not share PAN, Aadhaar, OTP, UPI, passwords, bank/account numbers, or other sensitive details. Ask the question without personal identifiers.',
+          source: 'ai',
+          references: [],
+        },
+      ])
+      return
+    }
+
+    setIsLoading(true)
     try {
       const result = await chat(message)
       setMessages((current) => [
