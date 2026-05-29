@@ -9,11 +9,9 @@ applications:
             - npm --version
             - npm ci
             - |
-              echo "VITE_AWS_REGION=$VITE_AWS_REGION" > .env.production
-              echo "VITE_USER_POOL_ID=$VITE_USER_POOL_ID" >> .env.production
-              echo "VITE_USER_POOL_CLIENT_ID=$VITE_USER_POOL_CLIENT_ID" >> .env.production
+              echo "VITE_CHAT_API_URL=$VITE_CHAT_API_URL" > .env.production
               echo "VITE_API_URL=$VITE_API_URL" >> .env.production
-              echo "Configured VITE_API_URL=$VITE_API_URL"
+              echo "Configured chatbot API env"
         build:
           commands:
             - npm run build
