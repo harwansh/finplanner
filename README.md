@@ -1,151 +1,110 @@
-# SmartFinly — Educational Finance Chatbot Site
+# SmartFinly / finplanner
 
-SmartFinly is an education-only finance chatbot site. The deployed frontend lives in `frontend/`, and the backend lives in `chatbot/backend/`.
+SmartFinly is an education-only finance planning and learning app for Indian users. The existing planner flow remains under the existing `/analyze` Lambda, and the finance education chatbot is implemented as a separate `/chat` Lambda.
 
-The production target flow is now implemented in the backend:
+## Chatbot
 
-```text
-User question
-→ guardrails
-→ PDF/knowledge index retrieval first
-→ if no strong match, AI fallback
-→ education-only response with citations when grounded
-```
-
-## What is included
+The chatbot is a RAG-style finance education assistant that fits the existing architecture:
 
 ```text
-frontend/                    # Amplify builds this live site
-├── src/App.jsx              # Chatbot UI wired to VITE_CHAT_API_URL or VITE_API_URL
-├── src/styles.css
-└── index.html
-
-chatbot/
-├── backend/
-│   ├── chat_handler.py      # Lambda handler: guardrails → retrieval → AI fallback
-│   ├── retrieval.py         # Pure-Python TF-IDF retrieval over index.json
-│   ├── ai_fallback.py       # Bedrock-ready fallback
-│   ├── guardrails.py
-│   ├── ingest.py            # Build index.json from PDFs
-│   ├── requirements.txt
-│   └── knowledge/index/index.json
-├── infrastructure/
-│   └── template.yaml        # SAM Lambda Function URL deployment
-└── tests/
-    └── test_chatbot.py
+frontend/                    React + Vite frontend
+backend/src/chat/app.py       Python AWS Lambda chatbot backend
+backend/scripts/ingest.py     One-time PDF ingestion script
+backend/src/chat/kb/          Local committed chatbot knowledge artifacts
+infrastructure/template.yaml  SAM template with AnalyzeFunction and ChatFunction
 ```
 
-## Hard rules
-
-1. Education only.
-2. No buy, sell, timing, stock, fund, SIP, or product recommendations.
-3. No guaranteed-return or price-prediction responses.
-4. No PAN, Aadhaar, OTP, password, bank-detail, or sensitive-identifier collection.
-5. Search the PDF/knowledge index first.
-6. Use AI fallback only when retrieval does not find a strong match.
-
-## Build the knowledge index from PDFs
-
-Place PDF files here:
+### Flow
 
 ```text
-knowledge/pdfs/
+User message
+→ sensitive-data rejection
+→ embed query with Amazon Titan Embeddings
+→ search local FAISS knowledge base
+→ if similarity >= threshold: answer from study-material context using Nova Pro
+→ otherwise: answer with Bedrock general finance education knowledge
 ```
 
-Then run:
+The chatbot is education-only. It is not a SEBI-registered investment adviser and must not provide personalized buy/sell advice, guaranteed returns, or product recommendations.
+
+### Knowledge base ingestion
+
+The source PDFs are the CFP study PDFs already committed at the repo root, including retirement planning, estate lectures, risk lectures, IPS/PMF, regulatory, IPAM, Indian markets, and tax planning.
+
+Install local ingestion dependencies:
 
 ```bash
-cd chatbot/backend
-python -m pip install -r requirements.txt
-python ingest.py
+python -m pip install boto3 numpy pypdf faiss-cpu
 ```
 
-This writes:
+Build the FAISS index and metadata:
+
+```bash
+python backend/scripts/ingest.py --force
+```
+
+The script writes:
 
 ```text
-chatbot/backend/knowledge/index/index.json
+backend/src/chat/kb/index.faiss
+backend/src/chat/kb/chunks.json
 ```
 
-The repo currently includes a small bundled index so the backend works before you upload real PDFs. Replace it by running `ingest.py` with your PDF library.
+The script is idempotent. If both files already exist, it skips re-embedding unless `--force` is supplied.
 
-## Run backend tests
+### Backend environment variables
 
-```bash
-cd chatbot
-python -m pip install pytest
-python -m pytest tests/ -q
+The SAM template exposes these configurable values:
+
+```text
+BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
+BEDROCK_EMBED_MODEL_ID=amazon.titan-embed-text-v2:0
+BEDROCK_REGION=us-east-1
+CHAT_TOP_K=4
+CHAT_SIMILARITY_THRESHOLD=0.35
 ```
 
-## Deploy backend with SAM
+### Deploy
 
 ```bash
-cd chatbot/infrastructure
+cd infrastructure
 sam build -t template.yaml
 sam deploy --guided -t template.yaml
 ```
 
-For PDF-first retrieval only, keep:
+The existing planner output remains:
 
 ```text
-EnableBedrockFallback=false
+ApiUrl
 ```
 
-For AI fallback with Bedrock, set:
+The new chatbot output is:
 
 ```text
-EnableBedrockFallback=true
-BedrockModelId=amazon.nova-lite-v1:0
-BedrockRegion=us-east-1
+ChatApiUrl
 ```
 
-The output `ChatApiUrl` is the Lambda Function URL.
+### Frontend environment variables
 
-## Connect the frontend to the backend
-
-In AWS Amplify environment variables, set one of these to the SAM output URL:
+Set these in Amplify / local `.env`:
 
 ```text
-VITE_CHAT_API_URL=https://your-lambda-url.lambda-url.us-east-1.on.aws/
+VITE_API_URL=<AnalyzeFunctionUrl>
+VITE_CHAT_API_URL=<ChatFunctionUrl>
 ```
 
-or:
+`VITE_API_URL` is for the existing planner flow. `VITE_CHAT_API_URL` is for the new education chatbot page.
+
+### Frontend route
+
+The chatbot page is available at:
 
 ```text
-VITE_API_URL=https://your-lambda-url.lambda-url.us-east-1.on.aws/
+/learn-chat
 ```
 
-Then redeploy Amplify. The frontend already calls that API first and falls back locally only if the API is unavailable.
+It renders markdown answers, a subtle source badge, references when the answer is grounded in study material, keyboard submit, loading state, and auto-scroll.
 
-## API response shape
+### Demo privacy note
 
-```json
-{
-  "blocked": false,
-  "source": "pdf_knowledge_base",
-  "answer": "...",
-  "citations": [
-    {
-      "id": "emi-001",
-      "title": "EMI and Income Capacity",
-      "source": "SmartFinly Education Notes",
-      "score": 0.42,
-      "text": "..."
-    }
-  ]
-}
-```
-
-When no knowledge-base match is found:
-
-```json
-{
-  "blocked": false,
-  "source": "ai_fallback",
-  "answer": "...",
-  "citations": []
-}
-```
-
-## Legal and safety notice
-
-SmartFinly is not a SEBI-registered investment adviser, research analyst, portfolio manager, insurance broker, tax filing service, lending platform, or product execution platform. It provides education-only explanations and does not provide personalized financial, tax, legal, insurance, or investment advice.
+The demo Function URL is unauthenticated. Do not enter real PAN, Aadhaar, OTP, UPI, bank/account numbers, passwords, or other sensitive personal identifiers.
