@@ -1,27 +1,29 @@
+import Home from './pages/Home.jsx'
 import Chat from './pages/Chat.jsx'
 
-function LearnLanding() {
+function Header({ activePath }) {
   return (
-    <main className="learn-chat-page">
-      <nav className="learn-chat-topbar" aria-label="SmartFinly navigation">
-        <a className="learn-chat-brand" href="/">SmartFinly</a>
-        <div className="learn-chat-nav">
-          <a href="/learn">Learn</a>
-          <a href="/learn-chat">Finance Chat</a>
-        </div>
+    <header className="sf-header">
+      <div className="sf-brand-lockup">
+        <a className="brand" href="/learn">SmartFinly</a>
+        <span className="sf-brand-badge">Education only</span>
+      </div>
+      <nav className="sf-nav" aria-label="SmartFinly navigation">
+        <a href="/learn" className={activePath !== '/learn-chat' ? 'active' : ''}>Planner</a>
+        <a href="/learn-chat" className={activePath === '/learn-chat' ? 'active' : ''}>Finance Chat</a>
       </nav>
-      <section className="learn-chat-hero">
-        <p className="eyebrow">SmartFinly Learn</p>
-        <h1>Your finance learning assistant</h1>
-        <p>Explore finance concepts and ask questions grounded in study material.</p>
-        <p style={{ marginTop: 18 }}><a className="learn-chat-brand" href="/learn-chat">Open Finance Education Chat →</a></p>
-      </section>
-    </main>
+    </header>
   )
 }
 
 export default function App() {
   const path = window.location.pathname
-  if (path === '/learn-chat') return <Chat />
-  return <LearnLanding />
+  const isChat = path === '/learn-chat'
+
+  return (
+    <>
+      <Header activePath={path} />
+      {isChat ? <Chat /> : <Home />}
+    </>
+  )
 }
