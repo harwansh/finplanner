@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SmartFinly Educational Chatbot - KB-first retrieval with Bedrock fallback
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Default: amazon.nova-pro-v1:0
+  BedrockRegion:
+    Type: String
+    Default: us-east-1
+  AllowedOrigin:
+    Type: String
+    Default: https://www.smartfinly.com
+
+Globals:
+  Function:
+    Timeout: 60
+    MemorySize: 1024
+    Runtime: python3.12
+    Architectures: [arm64]
+
+Resources:
+  ChatFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      # CodeUri must include backend code AND the prebuilt knowledge/index/index.json.
+      # Package the index alongside the handler before `sam build` (see README).
+      CodeUri: ../chatbot/backend/
+      Handler: chat_handler.handler
+      Environment:
+        Variables:
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          BEDROCK_REGION: !Ref BedrockRegion
+          AI_FALLBACK: "true"
+          AI_REWRITE_KB: "true"
+          INDEX_PATH: /var/task/knowledge/index/index.json
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              # Scope to the specific model rather than "*".
+              Resource:
+                - !Sub arn:aws:bedrock:${BedrockRegion}::foundation-model/${BedrockModelId}
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - !Ref AllowedOrigin
+            - https://smartfinly.com
+            - http://localhost:5173
+          AllowMethods: [POST]
+          AllowHeaders: [Content-Type]
+          MaxAge: 600
+
+Outputs:
+  ChatApiUrl:
+    Description: Function URL for the chatbot. Set as window.SMARTFINLY_CHAT_API on the site.
+    Value: !GetAtt ChatFunctionUrl.FunctionUrl
