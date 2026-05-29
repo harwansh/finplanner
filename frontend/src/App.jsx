@@ -1,44 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-
-const BLOCKED_PATTERNS = [
-  /should\s+i\s+(buy|sell|invest)/i,
-  /\b(best|top)\s+(stock|fund|mutual fund|sip|share)/i,
-  /price\s+prediction/i,
-  /guaranteed\s+return/i,
-  /multibagger/i,
-  /which\s+(stock|fund|share)/i,
-]
-
-const TOPICS = [
-  {
-    keywords: ['sip', 'systematic investment plan'],
-    answer: 'A SIP is a way to invest a fixed amount at regular intervals. It can build discipline and reduce the stress of timing the market. The key ideas are consistency, suitable time horizon, and risk awareness.',
-  },
-  {
-    keywords: ['emergency fund', 'emergency'],
-    answer: 'An emergency fund is money kept aside for unexpected needs such as job loss, medical costs, urgent travel, or repairs. Many education frameworks discuss keeping several months of essential expenses in safe and liquid instruments.',
-  },
-  {
-    keywords: ['compounding', 'compound'],
-    answer: 'Compounding means earning returns on earlier returns. Time, consistency, and reinvestment are the main drivers. Small regular contributions can grow meaningfully over long periods, but returns are not guaranteed.',
-  },
-  {
-    keywords: ['diversification', 'diversify'],
-    answer: 'Diversification means spreading money across assets, sectors, or instruments so one bad outcome does not dominate the entire plan. It reduces concentration risk but does not remove all risk.',
-  },
-  {
-    keywords: ['emi', 'loan', 'debt burden', 'debt-to-income', 'income'],
-    answer: 'A safe EMI level depends on net monthly income, existing EMIs, rent, essentials, dependents, emergency fund, insurance, and job stability. As an educational rule of thumb, many households try to keep total EMIs well below take-home income, often around 30% to 40% or lower, with a separate emergency buffer. For example, if take-home income is ₹60,000, total EMIs of ₹18,000 to ₹24,000 may already be a heavy commitment depending on rent and family obligations.',
-  },
-  {
-    keywords: ['health insurance', 'medical insurance', 'insurance cover', 'insurance'],
-    answer: 'Health insurance needs depend on city, age, family size, employer cover, existing illnesses, dependents, hospital costs, and emergency savings. Education frameworks usually treat insurance as protection before investing. A young single person and a family with children or parents will need very different cover levels, so compare likely hospital costs and avoid relying only on employer insurance.',
-  },
-  {
-    keywords: ['risk tolerance', 'risk capacity', 'risk'],
-    answer: 'Risk capacity depends on income stability, dependents, debt, emergency fund, goal horizon, and ability to handle losses. It is different from risk preference, which is how comfortable someone feels with volatility.',
-  },
-]
+import { buildKnowledgeAnswer, loadKnowledgeIndex, searchKnowledgeIndex } from './localKnowledge.js'
 
 const suggestedQuestions = [
   'What is SIP?',
@@ -48,111 +9,60 @@ const suggestedQuestions = [
   'How does compounding work?',
 ]
 
-function isAdviceRequest(message) {
-  return BLOCKED_PATTERNS.some((pattern) => pattern.test(message))
+function fallbackAnswer() {
+  return 'I could not find a strong match in the local PDF knowledge base. Connect VITE_CHAT_API_URL in Amplify so unmatched questions can be routed to the backend fallback.'
 }
 
-function buildLocalResponse(message) {
+async function getAnswer(message, localIndex) {
   const trimmed = String(message || '').trim()
+  if (!trimmed) return 'Please ask a finance education question to get started.'
 
-  if (!trimmed) {
-    return {
-      blocked: false,
-      source: 'validation',
-      answer: 'Please ask a finance education question to get started.',
-    }
-  }
+  const localMatch = searchKnowledgeIndex(trimmed, localIndex)
+  if (localMatch) return buildKnowledgeAnswer(localMatch)
 
-  if (isAdviceRequest(trimmed)) {
-    return {
-      blocked: true,
-      source: 'guardrail',
-      answer: 'I cannot recommend buying, selling, timing, or choosing a specific stock, fund, or product. I can explain the concept, risks, and evaluation framework in education-only terms. For personal advice, consult a SEBI-registered investment adviser.',
-    }
-  }
-
-  const lower = trimmed.toLowerCase()
-  const topic = TOPICS.find((item) => item.keywords.some((keyword) => lower.includes(keyword)))
-
-  if (topic) {
-    return {
-      blocked: false,
-      source: 'demo_knowledge_base',
-      answer: `${topic.answer} This is education-only information, not investment advice.`,
-    }
-  }
-
-  return {
-    blocked: false,
-    source: 'safe_education_fallback',
-    answer: 'I can help explain finance concepts in simple language. Ask about SIPs, emergency funds, EMIs, health insurance, debt burden, compounding, diversification, taxation, or risk capacity. I will keep the response educational and avoid product recommendations.',
-  }
-}
-
-function backendNotConnectedResponse() {
-  return {
-    blocked: false,
-    source: 'backend_not_connected',
-    answer: 'The live PDF/AI backend is not connected yet. Set VITE_CHAT_API_URL in Amplify to the Lambda Function URL, then redeploy. After that, answers will come from the PDF knowledge base first and AI fallback second.',
-  }
-}
-
-async function askSmartFinly(message) {
   const apiUrl = import.meta.env.VITE_CHAT_API_URL || import.meta.env.VITE_API_URL
-
-  if (!apiUrl) {
-    return import.meta.env.DEV ? buildLocalResponse(message) : backendNotConnectedResponse()
-  }
+  if (!apiUrl) return fallbackAnswer()
 
   try {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message: trimmed }),
     })
-
-    if (!response.ok) throw new Error('Chat API request failed')
-    return await response.json()
+    if (!response.ok) return fallbackAnswer()
+    const data = await response.json()
+    return data.answer || fallbackAnswer()
   } catch {
-    return import.meta.env.DEV ? buildLocalResponse(message) : backendNotConnectedResponse()
+    return fallbackAnswer()
   }
 }
 
 function Message({ message }) {
-  return (
-    <div className={`message ${message.role}`}>
-      <div className="bubble">{message.content}</div>
-    </div>
-  )
+  return <div className={`message ${message.role}`}><div className="bubble">{message.content}</div></div>
 }
 
 export default function App() {
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: 'Hi, I am SmartFinly. Ask me finance education questions. I do not provide buy, sell, timing, or product recommendations.',
-    },
-  ])
+  const [messages, setMessages] = useState([{ role: 'assistant', content: 'Hi, I am SmartFinly. I search the local PDF knowledge base first. If no match is found, I use the backend fallback.' }])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [localIndex, setLocalIndex] = useState(null)
   const messagesRef = useRef(null)
+
+  useEffect(() => { loadKnowledgeIndex().then(setLocalIndex) }, [])
 
   useEffect(() => {
     const container = messagesRef.current
-    if (!container) return
-    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+    if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
   }, [messages, isLoading])
 
   async function send(text) {
     const content = String(text || input).trim()
     if (!content || isLoading) return
-
     setInput('')
     setIsLoading(true)
     setMessages((current) => [...current, { role: 'user', content }])
-
-    const response = await askSmartFinly(content)
-    setMessages((current) => [...current, { role: 'assistant', content: response.answer }])
+    const answer = await getAnswer(content, localIndex)
+    setMessages((current) => [...current, { role: 'assistant', content: answer }])
     setIsLoading(false)
   }
 
@@ -166,50 +76,18 @@ export default function App() {
       <section className="hero" aria-label="SmartFinly chatbot overview">
         <p className="eyebrow">SmartFinly</p>
         <h1>Finance education chatbot</h1>
-        <p className="subtitle">
-          Learn concepts like SIPs, emergency funds, diversification, compounding, taxation, insurance,
-          and risk capacity in simple language. Education only. No product recommendations.
-        </p>
+        <p className="subtitle">Local PDF knowledge base first. Backend fallback only when no PDF match is found.</p>
       </section>
-
       <section className="chat-shell" aria-label="SmartFinly chatbot">
-        <div className="chat-header">
-          <div>
-            <strong>SmartFinly Chat</strong>
-            <span>Education-only finance assistant</span>
-          </div>
-          <span className="status-pill">Online</span>
-        </div>
-
+        <div className="chat-header"><div><strong>SmartFinly Chat</strong><span>{localIndex?.pdf_count ? `${localIndex.pdf_count} PDFs indexed` : 'Loading PDF index'}</span></div><span className="status-pill">Online</span></div>
         <div className="messages" ref={messagesRef} aria-live="polite">
           {messages.map((message, index) => <Message key={`${message.role}-${index}`} message={message} />)}
           {isLoading ? <Message message={{ role: 'assistant', content: 'Thinking...' }} /> : null}
         </div>
-
-        <div className="suggestions" aria-label="Suggested questions">
-          {suggestedQuestions.map((question) => (
-            <button key={question} type="button" onClick={() => send(question)} disabled={isLoading}>
-              {question}
-            </button>
-          ))}
-        </div>
-
-        <form className="composer" onSubmit={onSubmit}>
-          <input
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder="Ask a finance concept question..."
-            aria-label="Message"
-            disabled={isLoading}
-          />
-          <button type="submit" disabled={isLoading}>{isLoading ? 'Sending' : 'Send'}</button>
-        </form>
+        <div className="suggestions" aria-label="Suggested questions">{suggestedQuestions.map((question) => <button key={question} type="button" onClick={() => send(question)} disabled={isLoading}>{question}</button>)}</div>
+        <form className="composer" onSubmit={onSubmit}><input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask a finance concept question..." aria-label="Message" disabled={isLoading} /><button type="submit" disabled={isLoading}>{isLoading ? 'Sending' : 'Send'}</button></form>
       </section>
-
-      <footer className="disclaimer">
-        SmartFinly is for education only. It is not a SEBI-registered investment adviser and does not provide
-        investment, tax, legal, insurance, buy/sell, or product-selection advice.
-      </footer>
+      <footer className="disclaimer">SmartFinly is for education only.</footer>
     </main>
   )
 }
