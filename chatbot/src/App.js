@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { buildChatResponse, suggestedQuestions } from './chat.js';
+import { askSmartFinly } from './api.js';
+import { suggestedQuestions } from './chat.js';
 
 function Message({ message }) {
   return React.createElement(
@@ -17,18 +18,19 @@ export default function App() {
     },
   ]);
   const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  function send(text) {
+  async function send(text) {
     const content = String(text || input).trim();
-    if (!content) return;
+    if (!content || isLoading) return;
 
-    const response = buildChatResponse(content);
-    setMessages((current) => [
-      ...current,
-      { role: 'user', content },
-      { role: 'assistant', content: response.answer },
-    ]);
     setInput('');
+    setIsLoading(true);
+    setMessages((current) => [...current, { role: 'user', content }]);
+
+    const response = await askSmartFinly(content);
+    setMessages((current) => [...current, { role: 'assistant', content: response.answer }]);
+    setIsLoading(false);
   }
 
   function onSubmit(event) {
@@ -62,11 +64,12 @@ export default function App() {
         'div',
         { className: 'messages' },
         messages.map((message, index) => React.createElement(Message, { key: index, message })),
+        isLoading ? React.createElement(Message, { message: { role: 'assistant', content: 'Thinking...' } }) : null,
       ),
       React.createElement(
         'div',
         { className: 'suggestions' },
-        suggestedQuestions.map((question) => React.createElement('button', { key: question, type: 'button', onClick: () => send(question) }, question)),
+        suggestedQuestions.map((question) => React.createElement('button', { key: question, type: 'button', onClick: () => send(question), disabled: isLoading }, question)),
       ),
       React.createElement(
         'form',
@@ -76,8 +79,9 @@ export default function App() {
           onChange: (event) => setInput(event.target.value),
           placeholder: 'Ask a finance concept question...',
           'aria-label': 'Message',
+          disabled: isLoading,
         }),
-        React.createElement('button', { type: 'submit' }, 'Send'),
+        React.createElement('button', { type: 'submit', disabled: isLoading }, isLoading ? 'Sending' : 'Send'),
       ),
     ),
     React.createElement(
