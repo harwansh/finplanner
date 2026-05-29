@@ -1,5 +1,5 @@
 import json
-from ai_fallback import answer_with_ai_fallback
+from ai_fallback import answer_from_pdf_context, answer_with_ai_fallback
 from guardrails import blocked_answer, contains_sensitive_data, is_advice_request
 from retrieval import build_grounded_answer, search_knowledge_base
 
@@ -17,6 +17,19 @@ def _response(status_code, payload):
     }
 
 
+def _citations(matches):
+    return [
+        {
+            "id": match.get("id"),
+            "title": match.get("title"),
+            "source": match.get("source"),
+            "score": match.get("score"),
+            "text": match.get("text", "")[:500],
+        }
+        for match in matches
+    ]
+
+
 def answer_question(message):
     message = str(message or "").strip()
     if not message:
@@ -30,20 +43,12 @@ def answer_question(message):
 
     matches = search_knowledge_base(message)
     if matches:
+        synthesized = answer_from_pdf_context(message, matches)
         return {
             "blocked": False,
-            "source": "pdf_knowledge_base",
-            "answer": build_grounded_answer(message, matches),
-            "citations": [
-                {
-                    "id": match.get("id"),
-                    "title": match.get("title"),
-                    "source": match.get("source"),
-                    "score": match.get("score"),
-                    "text": match.get("text", "")[:500],
-                }
-                for match in matches
-            ],
+            "source": "pdf_knowledge_base_synthesized" if synthesized else "pdf_knowledge_base",
+            "answer": synthesized or build_grounded_answer(message, matches),
+            "citations": _citations(matches),
         }
 
     return {
