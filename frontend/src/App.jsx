@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadKnowledgeIndex } from './localKnowledge.js'
 
 const suggestedQuestions = [
   'Explain SIP in simple words',
@@ -9,28 +8,28 @@ const suggestedQuestions = [
   'Explain compounding with an example',
 ]
 
-function fallbackAnswer() {
-  return 'I am ready to answer, but the AI backend is not connected on this deployment yet. Please connect VITE_CHAT_API_URL in Amplify so I can read the PDF knowledge base and generate a proper answer.'
+function friendlyUnavailableAnswer() {
+  return 'I am having trouble preparing an answer right now. Please try again in a moment.'
 }
 
 async function getAnswer(message) {
   const trimmed = String(message || '').trim()
   if (!trimmed) return 'Ask me any finance education question to get started.'
 
-  const apiUrl = import.meta.env.VITE_CHAT_API_URL
-  if (!apiUrl) return fallbackAnswer()
+  const apiUrl = import.meta.env.VITE_CHAT_API_URL || import.meta.env.VITE_API_URL
+  if (!apiUrl) return friendlyUnavailableAnswer()
 
   try {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: trimmed }),
+      body: JSON.stringify({ message: trimmed, question: trimmed }),
     })
-    if (!response.ok) return fallbackAnswer()
+    if (!response.ok) return friendlyUnavailableAnswer()
     const data = await response.json()
-    return data.answer || fallbackAnswer()
+    return data.answer || data.report || data.message || friendlyUnavailableAnswer()
   } catch {
-    return fallbackAnswer()
+    return friendlyUnavailableAnswer()
   }
 }
 
@@ -47,17 +46,12 @@ export default function App() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Hi, I am SmartFinly. Ask me a finance question. I use your PDF knowledge base first, then AI fallback when the PDFs do not have enough context.',
+      content: 'Hi, I am SmartFinly. Ask me a finance question and I will explain it in simple, practical language.',
     },
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [pdfCount, setPdfCount] = useState(null)
   const messagesRef = useRef(null)
-
-  useEffect(() => {
-    loadKnowledgeIndex().then((index) => setPdfCount(index?.pdf_count || null))
-  }, [])
 
   useEffect(() => {
     const container = messagesRef.current
@@ -85,21 +79,21 @@ export default function App() {
       <section className="hero" aria-label="SmartFinly chatbot overview">
         <p className="eyebrow">SmartFinly</p>
         <h1>Your finance learning assistant</h1>
-        <p className="subtitle">Ask questions in plain English. SmartFinly reads your finance PDFs, explains the answer clearly, and uses AI fallback only when the PDFs do not cover the topic.</p>
+        <p className="subtitle">Ask questions in plain English and get clear, practical explanations for personal-finance concepts.</p>
       </section>
 
       <section className="chat-shell" aria-label="SmartFinly chatbot">
         <div className="chat-header">
           <div>
             <strong>SmartFinly Chat</strong>
-            <span>{pdfCount ? `${pdfCount} knowledge PDFs available` : 'PDF-grounded AI assistant'}</span>
+            <span>Finance education assistant</span>
           </div>
-          <span className="status-pill">Private beta</span>
+          <span className="status-pill">Online</span>
         </div>
 
         <div className="messages" ref={messagesRef} aria-live="polite">
           {messages.map((message, index) => <Message key={`${message.role}-${index}`} message={message} />)}
-          {isLoading ? <Message message={{ role: 'assistant', content: 'Reading the knowledge base and preparing an answer...' }} /> : null}
+          {isLoading ? <Message message={{ role: 'assistant', content: 'Preparing a clear answer...' }} /> : null}
         </div>
 
         <div className="suggestions" aria-label="Suggested questions">
