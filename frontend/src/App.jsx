@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { buildCommonFallback, buildKnowledgeAnswer, loadKnowledgeIndex, searchKnowledgeIndex } from './localKnowledge.js'
 
 const suggestedQuestions = [
   'Explain SIP in simple words',
@@ -8,16 +9,18 @@ const suggestedQuestions = [
   'Explain compounding with an example',
 ]
 
-function friendlyUnavailableAnswer() {
-  return 'I am having trouble preparing an answer right now. Please try again in a moment.'
+function localAnswer(message, knowledgeIndex) {
+  const match = searchKnowledgeIndex(message, knowledgeIndex)
+  if (match) return buildKnowledgeAnswer(match)
+  return buildCommonFallback(message)
 }
 
-async function getAnswer(message) {
+async function getAnswer(message, knowledgeIndex) {
   const trimmed = String(message || '').trim()
   if (!trimmed) return 'Ask me any finance education question to get started.'
 
   const apiUrl = import.meta.env.VITE_CHAT_API_URL || import.meta.env.VITE_API_URL
-  if (!apiUrl) return friendlyUnavailableAnswer()
+  if (!apiUrl) return localAnswer(trimmed, knowledgeIndex)
 
   try {
     const response = await fetch(apiUrl, {
@@ -25,11 +28,12 @@ async function getAnswer(message) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ message: trimmed, question: trimmed }),
     })
-    if (!response.ok) return friendlyUnavailableAnswer()
+    if (!response.ok) return localAnswer(trimmed, knowledgeIndex)
     const data = await response.json()
-    return data.answer || data.report || data.message || friendlyUnavailableAnswer()
+    const answer = data.answer || data.report || data.message
+    return answer || localAnswer(trimmed, knowledgeIndex)
   } catch {
-    return friendlyUnavailableAnswer()
+    return localAnswer(trimmed, knowledgeIndex)
   }
 }
 
@@ -51,7 +55,12 @@ export default function App() {
   ])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [knowledgeIndex, setKnowledgeIndex] = useState(null)
   const messagesRef = useRef(null)
+
+  useEffect(() => {
+    loadKnowledgeIndex().then(setKnowledgeIndex)
+  }, [])
 
   useEffect(() => {
     const container = messagesRef.current
@@ -64,7 +73,7 @@ export default function App() {
     setInput('')
     setIsLoading(true)
     setMessages((current) => [...current, { role: 'user', content }])
-    const answer = await getAnswer(content)
+    const answer = await getAnswer(content, knowledgeIndex)
     setMessages((current) => [...current, { role: 'assistant', content: answer }])
     setIsLoading(false)
   }
