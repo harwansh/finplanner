@@ -1,86 +1,111 @@
-# SmartFinly — Educational Finance Chatbot (Makeover)
+# SmartFinly — Educational Finance Chatbot Site
 
-This converts the SmartFinly planner site into a **conversational educational assistant**.
-It answers from a curated PDF library first, then falls back to AI only when the
-library has no good match.
+SmartFinly is now a working education-only finance chatbot site. It includes a Vite/React frontend, reusable chat safety logic, a small demo knowledge base, a Python Lambda-style backend handler, guardrails, tests, and a SAM deployment template.
 
-## Hard rules (enforced in code, tested)
+The current implementation is intentionally conservative: it explains finance concepts and blocks buy/sell/product-selection advice.
 
-1. **Knowledge-base first.** Every question is matched against the PDF library
-   (`knowledge/pdfs/`, indexed into `knowledge/index/index.json`). If a relevant
-   passage is found, the answer is grounded in it. AI is used only to rephrase
-   the retrieved passages into clean prose — it does not invent facts.
-2. **AI fallback second.** If the library has no usable match, Bedrock answers
-   the concept generically (still education-only, still brand-free).
-3. **No brand names — ever.** All source PDFs were re-ingested with brand names,
-   coaching-institute names, certification marks, and promotional watermark URLs
-   stripped (`sanitize.py`). Every outgoing answer is scrubbed again before send.
-4. **No buy / sell / product guidance — ever.** Requests for "should I buy/sell",
-   "which fund/stock", price predictions, etc. are intercepted and redirected to a
-   concept explanation plus a pointer to a SEBI-registered adviser. Outgoing answers
-   are also checked for advice phrasing as a safety net.
+## What is included
 
-## Layout
-
-```
+```text
 chatbot/
+├── index.html
+├── package.json
+├── vite.config.js
+├── .env.example
+├── src/
+│   ├── main.js
+│   ├── App.js
+│   ├── chat.js
+│   ├── chat.test.js
+│   └── styles.css
 ├── backend/
-│   ├── sanitize.py        # brand / mark / watermark stripping (single source of truth)
-│   ├── ingest.py          # PDF -> sanitized text -> chunks -> index.json + clean PDFs
-│   ├── retrieval.py       # pure-Python TF-IDF cosine retrieval (no ML wheels)
-│   ├── guardrails.py      # advice detection + answer scrubbing
-│   ├── chat_handler.py    # Lambda: KB-first -> AI fallback -> scrub
-│   └── knowledge/index/index.json   # bundled for packaging
-├── frontend/
-│   └── SmartFinlyChat.jsx # premium black/gold chat UI (React)
+│   ├── chat_handler.py
+│   ├── guardrails.py
+│   └── requirements.txt
 ├── infrastructure/
-│   └── template.yaml      # SAM: Function URL + scoped Bedrock permission
+│   └── template.yaml
 └── tests/
-    └── test_chatbot.py    # 14 tests: stripping, guardrails, routing, scrubbing
-
-knowledge/
-├── pdfs/                  # 13 brand-free educational PDFs (one folder, as requested)
-└── index/index.json       # search index
+    └── test_chatbot.py
 ```
 
-## Rebuild the knowledge base
+## Hard rules
 
-```
-cd chatbot/backend
-pip install pypdf reportlab --break-system-packages
-python ingest.py            # rewrites knowledge/pdfs/ and knowledge/index/index.json
-cp ../../knowledge/index/index.json knowledge/index/index.json
-```
+1. Education only.
+2. No buy, sell, timing, stock, fund, SIP, or product recommendations.
+3. No guaranteed-return or price-prediction responses.
+4. No PAN, Aadhaar, OTP, password, bank-detail, or sensitive-identifier collection.
+5. Unknown topics are handled as safe educational fallback prompts.
 
-## Run tests
+## Run the chatbot site locally
 
-```
+```bash
 cd chatbot
-INDEX_PATH=$PWD/../knowledge/index/index.json python -m pytest tests/ -q
+npm install
+npm run dev
 ```
 
-## Deploy
+Then open the local Vite URL shown in the terminal.
 
+The frontend works without a backend. It uses the in-browser demo knowledge base in `src/chat.js`.
+
+## Run frontend tests
+
+```bash
+cd chatbot
+npm install
+npm test
 ```
+
+## Run backend tests
+
+```bash
+cd chatbot
+python -m pytest tests/ -q
+```
+
+The backend has no runtime package dependencies for the demo handler.
+
+## Backend API shape
+
+`chatbot/backend/chat_handler.py` exposes a Lambda-compatible `handler(event, context)` and a pure `answer_question(message)` function.
+
+Request body:
+
+```json
+{
+  "message": "What is SIP?"
+}
+```
+
+Response body:
+
+```json
+{
+  "blocked": false,
+  "source": "demo_knowledge_base",
+  "answer": "...",
+  "citations": []
+}
+```
+
+## Deploy the backend with SAM
+
+```bash
 cd chatbot/infrastructure
 sam build -t template.yaml
 sam deploy --guided -t template.yaml
 ```
 
-Then expose the Function URL to the site, e.g. in `index.html`:
+The output `ChatApiUrl` is the Lambda Function URL.
 
-```html
-<script>window.SMARTFINLY_CHAT_API = "https://<id>.lambda-url.us-east-1.on.aws/";</script>
-```
+## Production next steps
 
-The frontend works without a backend too: with no API configured it serves a small
-in-browser demo KB so the UI is fully interactive in preview.
+- Wire the frontend to `VITE_CHAT_API_URL` for live backend calls.
+- Replace the demo topic matcher with real retrieval over `knowledge/index/index.json`.
+- Add Bedrock or another model only after retrieval and guardrails run first.
+- Add rate limiting, authentication, structured logs, and narrower CORS before using real users.
+- Keep the education-only disclaimer visible on every page.
 
-## Notes / honest limitations
+## Legal and safety notice
 
-- The stored PDFs in `knowledge/pdfs/` are **rebuilt from sanitized text**, not the
-  originals — the originals carry brand watermarks that must not be redistributed.
-  Visual fidelity (images, tables) is lost; the educational text is preserved.
-- Retrieval is keyword TF-IDF, chosen so the Lambda needs no heavy ML dependencies.
-  It's solid for concept lookup; for higher recall, swap in embeddings + a vector DB.
-- Bedrock IAM is scoped to the chosen model ARN, not `"*"`.
+SmartFinly is not a SEBI-registered investment adviser, research analyst, portfolio manager, insurance broker, tax filing service, lending platform, or product execution platform. It provides education-only explanations and does not provide personalized financial, tax, legal, insurance, or investment advice.
